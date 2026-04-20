@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Testing Panels{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Testing Panels</span>
+            <h1 class="workspace-title">All stored testing panels grouped by disease and testing modality.</h1>
+            <p class="lead">
+                This page is generated directly from the database. It shows which genes are currently
+                represented in the structured rules for DNA NGS, RNA NGS, plasma testing, and IHC.
+            </p>
+            <div class="hero-actions">
+                <a class="button button-secondary" href="{% url 'medstratix:guideline_workspace' %}">Back To Workspace</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics">
+        <article class="metric-card">
+            <span>Testing Methods</span>
+            <strong>{{ summary.total_methods }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Disease Buckets</span>
+            <strong>{{ summary.total_diseases }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Gene Entries</span>
+            <strong>{{ summary.total_genes }}</strong>
+        </article>
+    </section>
+
+    <section class="panel-catalog">
+        {% for panel in panels %}
+            <article class="workspace-panel panel-catalog__card">
+                <div class="section-heading">
+                    <span class="eyebrow">{{ panel.eyebrow }}</span>
+                    <h2>{{ panel.title }}</h2>
+                </div>
+
+                <div class="workspace-card__stats">
+                    <span>{{ panel.disease_count }} diseases</span>
+                    <span>{{ panel.gene_total }} total genes</span>
+                    <span>{{ panel.unique_gene_count }} unique genes</span>
+                </div>
+
+                <div class="panel-total-list">
+                    <p class="panel-total-list__label">Complete {{ panel.eyebrow }} gene list</p>
+                    <div class="gene-chip-row">
+                        {% for gene in panel.unique_genes %}
+                            <span class="gene-chip gene-chip--total">{{ gene }}</span>
+                        {% empty %}
+                            <span class="table-subtle">No genes stored yet.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="panel-catalog__scroll">
+                    <div class="mini-list">
+                        {% for disease in panel.diseases %}
+                            <div class="mini-item">
+                                <strong>{{ disease.disease }}</strong>
+                                <p>{{ disease.gene_count }} genes</p>
+                                <div class="gene-chip-row">
+                                    {% for gene in disease.genes %}
+                                        <span class="gene-chip">{{ gene }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="empty-state">
+                                <h3>No structured genes yet.</h3>
+                                <p>This testing modality does not currently have any gene entries in the database.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </article>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

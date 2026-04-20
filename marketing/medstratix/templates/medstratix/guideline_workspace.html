@@ -4,22 +4,65 @@
 
 {% block content %}
 <main class="page-shell">
-    <section class="workspace-hero">
-        <div class="section-heading">
-            <span class="eyebrow">Login Required</span>
-            <h2>Guideline upload and run workspace.</h2>
+    <section class="workspace-stage">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Guideline Workspace</span>
+            <h1 class="workspace-title">Upload, inspect, and rerun the full NCCN intelligence pipeline.</h1>
+            <p class="lead">
+                This workspace is designed for real library operations, not demo data. Upload from here,
+                inspect coverage depth, and jump into the dashboard when you need broader visibility.
+            </p>
+            <div class="hero-actions">
+                <a class="button button-primary" href="{% url 'medstratix:guideline_dashboard' %}">Open Coverage Dashboard</a>
+                <a class="button button-secondary" href="#guideline-library">Jump To Library</a>
+            </div>
         </div>
-        <p class="lead">
-            Upload a guideline PDF, store its metadata, and prepare it for the extraction pipeline.
-            This workspace is protected behind Django authentication.
-        </p>
+
+        <aside class="workspace-stage__aside">
+            <div class="workspace-panel workspace-panel--dark">
+                <p class="panel-kicker">Live Library</p>
+                <div class="workspace-score">
+                    <strong>{{ library_summary.total }}</strong>
+                    <span>guidelines in the system</span>
+                </div>
+                <div class="workspace-mini-stats">
+                    <div><span>Reviewed</span><strong>{{ library_summary.reviewed }}</strong></div>
+                    <div><span>Extracted</span><strong>{{ library_summary.extracted }}</strong></div>
+                    <div><span>Imported</span><strong>{{ library_summary.imported }}</strong></div>
+                </div>
+            </div>
+        </aside>
     </section>
 
-    <section class="workspace-grid">
-        <article class="section-block">
+    <section class="workspace-strip">
+        <article class="metric-card metric-card--workspace">
+            <span>Page Biomarkers</span>
+            <strong>{{ library_summary.page_biomarkers }}</strong>
+        </article>
+        <article class="metric-card metric-card--workspace">
+            <span>Page Therapies</span>
+            <strong>{{ library_summary.page_therapies }}</strong>
+        </article>
+        <article class="metric-card metric-card--workspace">
+            <span>Page Testing</span>
+            <strong>{{ library_summary.page_testing }}</strong>
+        </article>
+        <article class="metric-card metric-card--workspace">
+            <span>Depth Mix</span>
+            <strong>{{ library_summary.recent_deep }} / {{ library_summary.recent_starter }} / {{ library_summary.recent_light }}</strong>
+            <div class="mix-bar" aria-hidden="true">
+                <span class="mix-bar__deep" style="width:{% widthratio library_summary.recent_deep 8 100 %}%"></span>
+                <span class="mix-bar__starter" style="width:{% widthratio library_summary.recent_starter 8 100 %}%"></span>
+                <span class="mix-bar__light" style="width:{% widthratio library_summary.recent_light 8 100 %}%"></span>
+            </div>
+        </article>
+    </section>
+
+    <section class="workspace-shell">
+        <article class="workspace-panel workspace-panel--form">
             <div class="section-heading">
-                <span class="eyebrow">Upload Guideline</span>
-                <h2>Add a new guideline document.</h2>
+                <span class="eyebrow">Upload</span>
+                <h2>Add a guideline and process it immediately.</h2>
             </div>
             <form method="post" enctype="multipart/form-data" class="styled-form">
                 {% csrf_token %}
@@ -35,32 +78,129 @@
                 {% for error in form.non_field_errors %}
                     <p class="form-error">{{ error }}</p>
                 {% endfor %}
-                <button class="button button-primary" type="submit">Upload And Run</button>
+                <button class="button button-primary" type="submit">Upload And Process</button>
             </form>
         </article>
 
-        <article class="section-block">
-            <div class="section-heading">
-                <span class="eyebrow">Recent Guidelines</span>
-                <h2>Latest imported documents.</h2>
+        <article class="workspace-panel workspace-panel--library" id="guideline-library">
+            <div class="workspace-panel__top">
+                <div class="section-heading">
+                    <span class="eyebrow">Guideline Library</span>
+                    <h2>{{ page_obj.paginator.count }} stored documents, paginated for easier review.</h2>
+                </div>
+                <p class="workspace-page-meta">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </p>
             </div>
+
+            <form method="get" class="filter-bar">
+                <div class="filter-bar__group filter-bar__group--wide">
+                    <label for="workspace-q">Search</label>
+                    <input id="workspace-q" class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="Search guideline, cancer type, or version">
+                </div>
+                <div class="filter-bar__group">
+                    <label for="workspace-status">Status</label>
+                    <select id="workspace-status" class="form-control" name="status">
+                        <option value="">All</option>
+                        <option value="reviewed" {% if filters.status == "reviewed" %}selected{% endif %}>Reviewed</option>
+                        <option value="extracted" {% if filters.status == "extracted" %}selected{% endif %}>Extracted</option>
+                        <option value="imported" {% if filters.status == "imported" %}selected{% endif %}>Imported</option>
+                    </select>
+                </div>
+                <div class="filter-bar__group">
+                    <label for="workspace-sort">Sort</label>
+                    <select id="workspace-sort" class="form-control" name="sort">
+                        <option value="updated" {% if filters.sort == "updated" %}selected{% endif %}>Recently updated</option>
+                        <option value="name" {% if filters.sort == "name" %}selected{% endif %}>Name</option>
+                        <option value="cancer" {% if filters.sort == "cancer" %}selected{% endif %}>Cancer type</option>
+                    </select>
+                </div>
+                <div class="filter-bar__actions">
+                    <button class="button button-primary workspace-button" type="submit">Apply</button>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:guideline_workspace' %}">Reset</a>
+                </div>
+            </form>
+
+            {% if active_filter_chips %}
+                <div class="active-filters">
+                    {% for chip in active_filter_chips %}
+                        <a class="filter-chip" href="{{ chip.remove_url }}">
+                            <span>{{ chip.label }}: {{ chip.value }}</span>
+                            <strong>Clear</strong>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
             <div class="workspace-list">
-                {% for guideline in guidelines %}
-                    <div class="workspace-item">
-                        <div>
-                            <h3>{{ guideline.name }}</h3>
-                            <p>{{ guideline.cancer_type }}{% if guideline.version %} · {{ guideline.version }}{% endif %}</p>
-                        </div>
-                        <div class="workspace-meta">
-                            <span class="status-pill">{{ guideline.get_status_display }}</span>
-                            {% if guideline.source_file %}
-                                <a href="{{ guideline.source_file.url }}" target="_blank" rel="noopener">Open PDF</a>
-                            {% endif %}
-                        </div>
-                    </div>
+                {% for item in guidelines %}
+                    {% with guideline=item.guideline %}
+                        <article class="workspace-card">
+                            <div class="workspace-card__main">
+                                <div class="workspace-card__header">
+                                    <div>
+                                        <span class="workspace-card__type">{{ guideline.cancer_type }}</span>
+                                        <h3><a href="{% url 'medstratix:guideline_detail' guideline.pk %}">{{ guideline.name }}</a></h3>
+                                    </div>
+                                    <div class="workspace-card__badges">
+                                        <span class="status-pill">{{ guideline.get_status_display }}</span>
+                                        <span class="depth-pill depth-pill--{{ item.depth_label|lower }}">{{ item.depth_label }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="workspace-card__stats">
+                                    <span>{{ item.sections }} sections</span>
+                                    <span>{{ item.biomarkers }} biomarkers</span>
+                                    <span>{{ item.testing }} testing rules</span>
+                                    <span>{{ item.therapies }} therapy rules</span>
+                                </div>
+
+                                <div class="workspace-card__profile">
+                                    {% if item.profile %}
+                                        <strong>{{ item.profile.display_name }}</strong>
+                                        <span>{{ item.profile.molecular_style|title }}</span>
+                                    {% else %}
+                                        <strong>No parser profile</strong>
+                                        <span>Needs mapping</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="workspace-card__actions">
+                                <a class="button button-secondary workspace-button" href="{% url 'medstratix:guideline_detail' guideline.pk %}">View Details</a>
+                                {% if guideline.source_file %}
+                                    <a class="button button-secondary workspace-button" href="{{ guideline.source_file.url }}" target="_blank" rel="noopener">Open PDF</a>
+                                {% endif %}
+                                <form method="post" action="{% url 'medstratix:run_guideline_extraction' guideline.pk %}">
+                                    {% csrf_token %}
+                                    <button class="button button-primary workspace-button" type="submit">Run Full Processing</button>
+                                </form>
+                            </div>
+                        </article>
+                    {% endwith %}
                 {% empty %}
-                    <p>No guideline documents uploaded yet.</p>
+                    <div class="empty-state">
+                        <h3>No guidelines match these filters.</h3>
+                        <p>Try clearing one of the active filters or use a broader search term.</p>
+                        <a class="button button-secondary" href="{% url 'medstratix:guideline_workspace' %}">Clear Filters</a>
+                    </div>
                 {% endfor %}
+            </div>
+
+            <div class="pager">
+                {% if page_obj.has_previous %}
+                    <a class="pager__link" href="?page={{ page_obj.previous_page_number }}{{ filters.query_suffix }}">Previous</a>
+                {% else %}
+                    <span class="pager__link pager__link--disabled">Previous</span>
+                {% endif %}
+
+                <span class="pager__status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+                {% if page_obj.has_next %}
+                    <a class="pager__link" href="?page={{ page_obj.next_page_number }}{{ filters.query_suffix }}">Next</a>
+                {% else %}
+                    <span class="pager__link pager__link--disabled">Next</span>
+                {% endif %}
             </div>
         </article>
     </section>

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Therapy Rules{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Therapy Rules</span>
+            <h1 class="workspace-title">All stored therapy rules grouped by disease, plus the complete therapy list.</h1>
+            <p class="lead">
+                This page is generated directly from the structured therapy rules in the database. It gives
+                you both the total deduplicated therapy list and the disease-specific clustering.
+            </p>
+            <div class="hero-actions">
+                <a class="button button-secondary" href="{% url 'medstratix:guideline_workspace' %}">Back To Workspace</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics">
+        <article class="metric-card">
+            <span>Disease Buckets</span>
+            <strong>{{ summary.disease_buckets }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Therapy Entries</span>
+            <strong>{{ summary.total_therapy_entries }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Unique Therapies</span>
+            <strong>{{ summary.unique_therapies }}</strong>
+        </article>
+    </section>
+
+    <section class="panel-catalog panel-catalog--single">
+        <article class="workspace-panel panel-catalog__card">
+            <div class="section-heading">
+                <span class="eyebrow">Therapy Catalog</span>
+                <h2>Complete list plus disease-based therapy clustering.</h2>
+            </div>
+
+            <div class="workspace-card__stats">
+                <span>{{ panel.disease_count }} diseases</span>
+                <span>{{ panel.therapy_total }} total therapy entries</span>
+                <span>{{ panel.unique_therapy_count }} unique therapies</span>
+            </div>
+
+            <div class="panel-total-list">
+                <p class="panel-total-list__label">Complete therapy list</p>
+                <div class="gene-chip-row">
+                    {% for therapy in panel.unique_therapies %}
+                        <span class="gene-chip gene-chip--total">{{ therapy }}</span>
+                    {% empty %}
+                        <span class="table-subtle">No therapy rules stored yet.</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="panel-catalog__scroll">
+                <div class="mini-list">
+                    {% for disease in panel.diseases %}
+                        <div class="mini-item">
+                            <strong>{{ disease.disease }}</strong>
+                            <p>{{ disease.therapy_count }} therapies</p>
+                            <div class="gene-chip-row">
+                                {% for therapy in disease.therapies %}
+                                    <span class="gene-chip">{{ therapy }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="empty-state">
+                            <h3>No structured therapies yet.</h3>
+                            <p>The database does not currently contain any therapy rules.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+    </section>
+</main>
+{% endblock %}

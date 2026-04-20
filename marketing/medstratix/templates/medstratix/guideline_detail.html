@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}{{ guideline.name }}{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Guideline Detail</span>
+            <h1 class="workspace-title">{{ guideline.name }}</h1>
+            <p class="lead">
+                {{ guideline.cancer_type }}{% if guideline.version %} | {{ guideline.version }}{% endif %}
+                {% if guideline.year %} | {{ guideline.year }}{% endif %}
+            </p>
+            <div class="hero-actions">
+                <a class="button button-secondary" href="{% url 'medstratix:guideline_workspace' %}">Back To Workspace</a>
+                {% if guideline.source_file %}
+                    <a class="button button-secondary" href="{{ guideline.source_file.url }}" target="_blank" rel="noopener">Open PDF</a>
+                {% endif %}
+                <form method="post" action="{% url 'medstratix:run_guideline_extraction' guideline.pk %}">
+                    {% csrf_token %}
+                    <button class="button button-primary" type="submit">Run Full Processing</button>
+                </form>
+            </div>
+        </div>
+
+        <aside class="workspace-stage__aside">
+            <div class="workspace-panel workspace-panel--dark">
+                <p class="panel-kicker">Profile Summary</p>
+                <div class="workspace-mini-stats workspace-mini-stats--detail">
+                    <div>
+                        <span>Status</span>
+                        <strong>{{ guideline.get_status_display }}</strong>
+                    </div>
+                    <div>
+                        <span>Depth</span>
+                        <strong>{{ snapshot.depth_label }}</strong>
+                    </div>
+                    {% if parser_profile %}
+                        <div>
+                            <span>Family</span>
+                            <strong>{{ parser_profile.code_family }}</strong>
+                        </div>
+                        <div>
+                            <span>Style</span>
+                            <strong>{{ parser_profile.molecular_style|title }}</strong>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </aside>
+    </section>
+
+    <section class="dashboard-metrics dashboard-metrics--wide">
+        <article class="metric-card">
+            <span>Sections</span>
+            <strong>{{ snapshot.sections }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Biomarkers</span>
+            <strong>{{ snapshot.biomarkers }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Testing Rules</span>
+            <strong>{{ snapshot.testing }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Therapy Rules</span>
+            <strong>{{ snapshot.therapies }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Biomarker Sections</span>
+            <strong>{{ section_type_counts.biomarker }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Therapy Sections</span>
+            <strong>{{ section_type_counts.therapy }}</strong>
+        </article>
+    </section>
+
+    <section class="detail-shell">
+        <article class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Structured Intelligence</span>
+                <h2>Biomarkers, testing, and therapies in one bounded view.</h2>
+            </div>
+
+            <div class="detail-columns">
+                <section class="detail-column">
+                    <div class="detail-column__header">
+                        <h3>Biomarkers</h3>
+                        <span>{{ biomarker_definitions|length }}</span>
+                    </div>
+                    <div class="detail-scroll">
+                        <div class="mini-list">
+                            {% for biomarker in biomarker_definitions %}
+                                <div class="mini-item">
+                                    <strong>{{ biomarker.gene.symbol }}</strong>
+                                    <p>{{ biomarker.get_alteration_family_display }} | Priority {{ biomarker.priority_rank }}</p>
+                                    <p>{{ biomarker.guideline_context }}</p>
+                                </div>
+                            {% empty %}
+                                <p>No biomarker definitions created yet.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="detail-column">
+                    <div class="detail-column__header">
+                        <h3>Testing</h3>
+                        <span>{{ testing_rules|length }}</span>
+                    </div>
+                    <div class="detail-scroll">
+                        <div class="mini-list">
+                            {% for testing_rule in testing_rules %}
+                                <div class="mini-item">
+                                    <strong>{{ testing_rule.biomarker_definition.gene.symbol }}</strong>
+                                    <p>{{ testing_rule.get_method_type_display }}{% if testing_rule.is_required %} | Required{% endif %}</p>
+                                    <p>{{ testing_rule.notes|default:"No notes yet." }}</p>
+                                </div>
+                            {% empty %}
+                                <p>No testing rules created yet.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="detail-column">
+                    <div class="detail-column__header">
+                        <h3>Therapies</h3>
+                        <span>{{ therapy_rules|length }}</span>
+                    </div>
+                    <div class="detail-scroll">
+                        <div class="mini-list">
+                            {% for therapy_rule in therapy_rules %}
+                                <div class="mini-item">
+                                    <strong>{{ therapy_rule.therapy_definition.name }}</strong>
+                                    <p>{{ therapy_rule.biomarker_variant_rule.variant_label }}</p>
+                                    <p>{{ therapy_rule.therapy_line|default:"line not set" }} | {{ therapy_rule.get_therapy_role_display }}</p>
+                                </div>
+                            {% empty %}
+                                <p>No therapy rules created yet.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </article>
+
+        <article class="workspace-panel detail-panel detail-panel--sections">
+            <div class="dashboard-panel__top">
+                <div class="section-heading">
+                    <span class="eyebrow">Extracted Sections</span>
+                    <h2>Paginated section review with bounded text expansion.</h2>
+                </div>
+                <p class="workspace-page-meta">Page {{ section_page_obj.number }} of {{ section_page_obj.paginator.num_pages }}</p>
+            </div>
+
+            <div class="section-list">
+                {% for section in sections %}
+                    <article class="section-card">
+                        <div class="section-card__header">
+                            <div>
+                                <span class="workspace-card__type">
+                                    {% if section.section_code %}{{ section.section_code }}{% else %}No Code{% endif %}
+                                </span>
+                                <h3>{{ section.title }}</h3>
+                            </div>
+                            <div class="workspace-card__badges">
+                                <span class="status-pill">{{ section.get_section_type_display }}</span>
+                                <span class="depth-pill depth-pill--light">
+                                    Pages {{ section.page_start }}{% if section.page_end and section.page_end != section.page_start %}-{{ section.page_end }}{% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        <details class="section-details">
+                            <summary>View extracted text</summary>
+                            <pre class="section-text">{{ section.normalized_text|default:section.raw_text }}</pre>
+                        </details>
+                    </article>
+                {% empty %}
+                    <p>No sections have been extracted for this guideline yet.</p>
+                {% endfor %}
+            </div>
+
+            <div class="pager">
+                {% if section_page_obj.has_previous %}
+                    <a class="pager__link" href="?sections_page={{ section_page_obj.previous_page_number }}">Previous</a>
+                {% else %}
+                    <span class="pager__link pager__link--disabled">Previous</span>
+                {% endif %}
+
+                <span class="pager__status">Page {{ section_page_obj.number }} of {{ section_page_obj.paginator.num_pages }}</span>
+
+                {% if section_page_obj.has_next %}
+                    <a class="pager__link" href="?sections_page={{ section_page_obj.next_page_number }}">Next</a>
+                {% else %}
+                    <span class="pager__link pager__link--disabled">Next</span>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+</main>
+{% endblock %}

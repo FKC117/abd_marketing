@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Guideline Dashboard{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Coverage Dashboard</span>
+            <h1 class="workspace-title">See parser depth, rule density, and coverage quality across the full library.</h1>
+            <p class="lead">
+                This dashboard is for operational review. It keeps the large library navigable with bounded
+                tables, pagination, and a depth signal that separates stronger profiles from lighter starter passes.
+            </p>
+            <div class="hero-actions">
+                <a class="button button-secondary" href="{% url 'medstratix:guideline_workspace' %}">Back To Workspace</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics dashboard-metrics--wide">
+        <article class="metric-card">
+            <span>Total Guidelines</span>
+            <strong>{{ summary.total }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Reviewed</span>
+            <strong>{{ summary.reviewed }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Biomarkers</span>
+            <strong>{{ summary.total_biomarkers }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Therapies</span>
+            <strong>{{ summary.total_therapies }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Testing</span>
+            <strong>{{ summary.total_testing }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Depth Mix</span>
+            <strong>{{ summary.deep }} / {{ summary.starter }} / {{ summary.light }}</strong>
+            <div class="mix-bar" aria-hidden="true">
+                <span class="mix-bar__deep" style="width:{% widthratio summary.deep summary.total 100 %}%"></span>
+                <span class="mix-bar__starter" style="width:{% widthratio summary.starter summary.total 100 %}%"></span>
+                <span class="mix-bar__light" style="width:{% widthratio summary.light summary.total 100 %}%"></span>
+            </div>
+        </article>
+    </section>
+
+    <section class="workspace-shell workspace-shell--dashboard">
+        <article class="workspace-panel dashboard-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Needs More Depth</span>
+                <h2>Profiles that still need a richer parser pass.</h2>
+            </div>
+            <div class="mini-list">
+                {% for item in lowest_depth %}
+                    <div class="mini-item">
+                        <strong>{{ item.guideline.name }}</strong>
+                        <p>{{ item.guideline.cancer_type }}</p>
+                        <p>{{ item.biomarkers }} biomarkers | {{ item.testing }} testing | {{ item.therapies }} therapies</p>
+                        <span class="depth-pill depth-pill--{{ item.depth_label|lower }}">{{ item.depth_label }}</span>
+                    </div>
+                {% empty %}
+                    <p>All current profiles are already in the deep tier.</p>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="workspace-panel dashboard-panel dashboard-panel--legend">
+            <div class="section-heading">
+                <span class="eyebrow">Depth Legend</span>
+                <h2>How to read profile quality at a glance.</h2>
+            </div>
+            <div class="mini-list">
+                <div class="mini-item">
+                    <span class="depth-pill depth-pill--deep">Deep</span>
+                    <p>Richer biomarker, testing, and therapy coverage.</p>
+                </div>
+                <div class="mini-item">
+                    <span class="depth-pill depth-pill--starter">Starter</span>
+                    <p>Good structured coverage, but still a lighter disease-specific pass.</p>
+                </div>
+                <div class="mini-item">
+                    <span class="depth-pill depth-pill--light">Light</span>
+                    <p>Minimal structured layer, useful for triage and future parser enrichment.</p>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <section class="section-block dashboard-panel">
+        <div class="dashboard-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Coverage Table</span>
+                <h2>Paginated review of every guideline profile.</h2>
+            </div>
+            <p class="workspace-page-meta">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+        </div>
+
+        <form method="get" class="filter-bar filter-bar--dashboard">
+            <div class="filter-bar__group filter-bar__group--wide">
+                <label for="dashboard-q">Search</label>
+                <input id="dashboard-q" class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="Search guideline or cancer type">
+            </div>
+            <div class="filter-bar__group">
+                <label for="dashboard-status">Status</label>
+                <select id="dashboard-status" class="form-control" name="status">
+                    <option value="">All</option>
+                    <option value="reviewed" {% if filters.status == "reviewed" %}selected{% endif %}>Reviewed</option>
+                    <option value="extracted" {% if filters.status == "extracted" %}selected{% endif %}>Extracted</option>
+                    <option value="imported" {% if filters.status == "imported" %}selected{% endif %}>Imported</option>
+                </select>
+            </div>
+            <div class="filter-bar__group">
+                <label for="dashboard-depth">Depth</label>
+                <select id="dashboard-depth" class="form-control" name="depth">
+                    <option value="">All</option>
+                    <option value="Deep" {% if filters.depth == "Deep" %}selected{% endif %}>Deep</option>
+                    <option value="Starter" {% if filters.depth == "Starter" %}selected{% endif %}>Starter</option>
+                    <option value="Light" {% if filters.depth == "Light" %}selected{% endif %}>Light</option>
+                </select>
+            </div>
+            <div class="filter-bar__group">
+                <label for="dashboard-sort">Sort</label>
+                <select id="dashboard-sort" class="form-control" name="sort">
+                    <option value="depth" {% if filters.sort == "depth" %}selected{% endif %}>Depth</option>
+                    <option value="name" {% if filters.sort == "name" %}selected{% endif %}>Name</option>
+                    <option value="cancer" {% if filters.sort == "cancer" %}selected{% endif %}>Cancer type</option>
+                    <option value="biomarkers" {% if filters.sort == "biomarkers" %}selected{% endif %}>Biomarkers</option>
+                    <option value="testing" {% if filters.sort == "testing" %}selected{% endif %}>Testing</option>
+                    <option value="therapies" {% if filters.sort == "therapies" %}selected{% endif %}>Therapies</option>
+                    <option value="sections" {% if filters.sort == "sections" %}selected{% endif %}>Sections</option>
+                </select>
+            </div>
+            <div class="filter-bar__actions">
+                <button class="button button-primary workspace-button" type="submit">Apply</button>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:guideline_dashboard' %}">Reset</a>
+            </div>
+        </form>
+
+        {% if active_filter_chips %}
+            <div class="active-filters">
+                {% for chip in active_filter_chips %}
+                    <a class="filter-chip" href="{{ chip.remove_url }}">
+                        <span>{{ chip.label }}: {{ chip.value }}</span>
+                        <strong>Clear</strong>
+                    </a>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="dashboard-table-wrap dashboard-table-wrap--bounded">
+            <table class="dashboard-table">
+                <thead>
+                    <tr>
+                        <th><a class="sort-link" href="{{ sort_links.name }}">Guideline</a></th>
+                        <th><a class="sort-link" href="{{ sort_links.profile }}">Profile</a></th>
+                        <th><a class="sort-link" href="{{ sort_links.depth }}">Depth</a></th>
+                        <th><a class="sort-link" href="{{ sort_links.sections }}">Sections</a></th>
+                        <th><a class="sort-link" href="{{ sort_links.biomarkers }}">Biomarkers</a></th>
+                        <th><a class="sort-link" href="{{ sort_links.testing }}">Testing</a></th>
+                        <th><a class="sort-link" href="{{ sort_links.therapies }}">Therapies</a></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in snapshots %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'medstratix:guideline_detail' item.guideline.pk %}">{{ item.guideline.name }}</a>
+                                <div class="table-subtle">{{ item.guideline.cancer_type }}</div>
+                                <div class="table-subtle">{{ item.guideline.get_status_display }}</div>
+                            </td>
+                            <td>
+                                {% if item.profile %}
+                                    <strong>{{ item.profile.display_name }}</strong>
+                                    <div class="table-subtle">{{ item.profile.molecular_style|title }}</div>
+                                {% else %}
+                                    <strong>Unmatched</strong>
+                                {% endif %}
+                            </td>
+                            <td><span class="depth-pill depth-pill--{{ item.depth_label|lower }}">{{ item.depth_label }}</span></td>
+                            <td>{{ item.sections }}</td>
+                            <td>{{ item.biomarkers }}</td>
+                            <td>{{ item.testing }}</td>
+                            <td>{{ item.therapies }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state empty-state--table">
+                                    <h3>No guidelines match these filters.</h3>
+                                    <p>Try a broader search, remove the depth filter, or reset the dashboard controls.</p>
+                                    <a class="button button-secondary" href="{% url 'medstratix:guideline_dashboard' %}">Clear Filters</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pager">
+            {% if page_obj.has_previous %}
+                <a class="pager__link" href="?page={{ page_obj.previous_page_number }}{{ filters.query_suffix }}">Previous</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Previous</span>
+            {% endif %}
+
+            <span class="pager__status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a class="pager__link" href="?page={{ page_obj.next_page_number }}{{ filters.query_suffix }}">Next</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Next</span>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}

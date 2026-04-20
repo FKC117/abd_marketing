@@ -230,6 +230,8 @@ class BiomarkerDefinition(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="biomarker_definitions",
     )
+    cancer_type = models.CharField(max_length=255, blank=True)
+    guideline_context = models.CharField(max_length=255, blank=True)
     molecular_profile = models.ForeignKey(
         MolecularProfile,
         on_delete=models.CASCADE,
@@ -261,6 +263,8 @@ class BiomarkerVariantRule(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="biomarker_variant_rules",
     )
+    cancer_type = models.CharField(max_length=255, blank=True)
+    guideline_context = models.CharField(max_length=255, blank=True)
     biomarker_definition = models.ForeignKey(
         BiomarkerDefinition,
         on_delete=models.CASCADE,
@@ -302,6 +306,8 @@ class TestingMethodRule(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="testing_method_rules",
     )
+    cancer_type = models.CharField(max_length=255, blank=True)
+    guideline_context = models.CharField(max_length=255, blank=True)
     biomarker_definition = models.ForeignKey(
         BiomarkerDefinition,
         on_delete=models.CASCADE,
@@ -347,6 +353,8 @@ class GuidelineTherapyRule(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="therapy_rules",
     )
+    cancer_type = models.CharField(max_length=255, blank=True)
+    guideline_context = models.CharField(max_length=255, blank=True)
     molecular_profile = models.ForeignKey(
         MolecularProfile,
         on_delete=models.CASCADE,
