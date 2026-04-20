@@ -1013,6 +1013,11 @@ ul.errorlist {
     color: #8b4d18;
 }
 
+.gene-chip--variant {
+    background: rgba(31, 46, 45, 0.08);
+    color: var(--text);
+}
+
 .detail-panel--sections .section-list {
     margin-top: 1rem;
 }

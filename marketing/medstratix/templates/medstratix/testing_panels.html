@@ -45,6 +45,7 @@
                     <span>{{ panel.disease_count }} diseases</span>
                     <span>{{ panel.gene_total }} total genes</span>
                     <span>{{ panel.unique_gene_count }} unique genes</span>
+                    <span>{{ panel.unique_variant_count }} unique variants</span>
                 </div>
 
                 <div class="panel-total-list">
@@ -54,6 +55,17 @@
                             <span class="gene-chip gene-chip--total">{{ gene }}</span>
                         {% empty %}
                             <span class="table-subtle">No genes stored yet.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="panel-total-list">
+                    <p class="panel-total-list__label">Complete {{ panel.eyebrow }} variant list</p>
+                    <div class="gene-chip-row">
+                        {% for variant in panel.unique_variants %}
+                            <span class="gene-chip gene-chip--variant">{{ variant }}</span>
+                        {% empty %}
+                            <span class="table-subtle">No variants stored yet.</span>
                         {% endfor %}
                     </div>
                 </div>

@@ -97,6 +97,12 @@ def _aggregate_testing_panel(method_type: str) -> dict:
         .distinct()
         .order_by("cancer_type", "biomarker_definition__gene__symbol")
     )
+    variant_rows = (
+        TestingMethodRule.objects.filter(method_type=method_type)
+        .values_list("biomarker_definition__variant_rules__variant_label", flat=True)
+        .distinct()
+        .order_by("biomarker_definition__variant_rules__variant_label")
+    )
     grouped: dict[str, list[str]] = defaultdict(list)
 
     for cancer_type, gene_symbol in rows:
@@ -106,6 +112,7 @@ def _aggregate_testing_panel(method_type: str) -> dict:
             grouped[disease].append(symbol)
 
     all_genes = sorted({gene for genes in grouped.values() for gene in genes})
+    all_variants = sorted({variant.strip() for variant in variant_rows if variant and variant.strip()})
 
     diseases = [
         {
@@ -123,6 +130,8 @@ def _aggregate_testing_panel(method_type: str) -> dict:
         "gene_total": sum(item["gene_count"] for item in diseases),
         "unique_genes": all_genes,
         "unique_gene_count": len(all_genes),
+        "unique_variants": all_variants,
+        "unique_variant_count": len(all_variants),
     }
 
 
