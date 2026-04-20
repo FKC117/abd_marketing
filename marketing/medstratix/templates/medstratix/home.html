@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="hero-section">
+        <div class="hero-copy">
+            <span class="eyebrow">{{ hero_eyebrow }}</span>
+            <h1>{{ hero_title }}</h1>
+            <p class="lead">{{ hero_text }}</p>
+
+            <div class="hero-actions">
+                {% if request.user.is_authenticated %}
+                    <a class="button button-primary" href="{% url 'medstratix:guideline_workspace' %}">Open Workspace</a>
+                {% else %}
+                    <a class="button button-primary" href="{% url 'medstratix:signin' %}">Sign In</a>
+                {% endif %}
+                <a class="button button-secondary" href="#approach">See Our Approach</a>
+            </div>
+
+            <ul class="bullet-list">
+                {% for point in hero_points %}
+                    <li>{{ point }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <aside class="hero-panel">
+            <p class="panel-kicker">Built for modern healthcare teams</p>
+            <div class="stat-grid">
+                {% for stat in stats %}
+                    <article class="stat-card">
+                        <strong>{{ stat.value }}</strong>
+                        <span>{{ stat.label }}</span>
+                    </article>
+                {% endfor %}
+            </div>
+        </aside>
+    </section>
+
+    <section class="section-block" id="services">
+        <div class="section-heading">
+            <span class="eyebrow">Core Services</span>
+            <h2>Simple structure, ready for your real MedStratix content.</h2>
+        </div>
+
+        <div class="service-grid">
+            {% for service in services %}
+                <article class="service-card">
+                    <h3>{{ service.title }}</h3>
+                    <p>{{ service.text }}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="section-band" id="approach">
+        <div class="section-heading">
+            <span class="eyebrow">Our Approach</span>
+            <h2>A starter layout you can keep extending.</h2>
+        </div>
+        <p class="band-text">
+            We now have a reusable base template, shared static styling, and a homepage layout
+            that can grow into your full marketing site without reworking the project setup.
+        </p>
+    </section>
+</main>
+{% endblock %}

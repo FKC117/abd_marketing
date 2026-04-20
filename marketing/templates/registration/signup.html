@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block content %}
+<main class="page-shell auth-shell">
+    <section class="auth-card">
+        <div class="section-heading">
+            <span class="eyebrow">Create Account</span>
+            <h2>Set up your MedStratix login.</h2>
+        </div>
+
+        <form method="post" class="styled-form">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-row">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}
+                        <p class="form-help">{{ field.help_text|safe }}</p>
+                    {% endif %}
+                    {% for error in field.errors %}
+                        <p class="form-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <p class="form-error">{{ error }}</p>
+            {% endfor %}
+            <button class="button button-primary" type="submit">Create Account</button>
+        </form>
+
+        <p class="auth-meta">
+            Already registered?
+            <a href="{% url 'medstratix:signin' %}">Sign in instead</a>.
+        </p>
+    </section>
+</main>
+{% endblock %}

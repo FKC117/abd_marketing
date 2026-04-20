@@ -1,0 +1,12 @@
+django
+psycopg[binary]
+python-dotenv
+pypdf
+langchain
+langgraph
+google-genai
+django-htmx
+django-tailwind
+pandas
+openpyxl
+whitenoise

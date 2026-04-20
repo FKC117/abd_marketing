@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Guideline Workspace{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-hero">
+        <div class="section-heading">
+            <span class="eyebrow">Login Required</span>
+            <h2>Guideline upload and run workspace.</h2>
+        </div>
+        <p class="lead">
+            Upload a guideline PDF, store its metadata, and prepare it for the extraction pipeline.
+            This workspace is protected behind Django authentication.
+        </p>
+    </section>
+
+    <section class="workspace-grid">
+        <article class="section-block">
+            <div class="section-heading">
+                <span class="eyebrow">Upload Guideline</span>
+                <h2>Add a new guideline document.</h2>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="styled-form">
+                {% csrf_token %}
+                {% for field in form %}
+                    <div class="form-row">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% for error in field.errors %}
+                            <p class="form-error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
+                <button class="button button-primary" type="submit">Upload And Run</button>
+            </form>
+        </article>
+
+        <article class="section-block">
+            <div class="section-heading">
+                <span class="eyebrow">Recent Guidelines</span>
+                <h2>Latest imported documents.</h2>
+            </div>
+            <div class="workspace-list">
+                {% for guideline in guidelines %}
+                    <div class="workspace-item">
+                        <div>
+                            <h3>{{ guideline.name }}</h3>
+                            <p>{{ guideline.cancer_type }}{% if guideline.version %} · {{ guideline.version }}{% endif %}</p>
+                        </div>
+                        <div class="workspace-meta">
+                            <span class="status-pill">{{ guideline.get_status_display }}</span>
+                            {% if guideline.source_file %}
+                                <a href="{{ guideline.source_file.url }}" target="_blank" rel="noopener">Open PDF</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <p>No guideline documents uploaded yet.</p>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+</main>
+{% endblock %}

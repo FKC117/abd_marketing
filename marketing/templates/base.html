@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ page_title|default:"MedStratix" }}{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'medstratix/css/site.css' %}">
+</head>
+<body>
+    <header class="site-header">
+        <div class="site-header__inner">
+            <a class="brand-mark" href="{% url 'medstratix:home' %}">MedStratix</a>
+            <nav class="site-nav">
+                <a href="{% url 'medstratix:home' %}">Home</a>
+                {% if request.user.is_authenticated %}
+                    <a href="{% url 'medstratix:guideline_workspace' %}">Workspace</a>
+                    <form method="post" action="{% url 'medstratix:logout' %}">
+                        {% csrf_token %}
+                        <button class="nav-button" type="submit">Logout</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'medstratix:signin' %}">Sign in</a>
+                    <a class="nav-pill" href="{% url 'medstratix:signup' %}">Sign up</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+    {% if messages %}
+        <div class="flash-stack">
+            {% for message in messages %}
+                <div class="flash-message">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+</body>
+</html>
