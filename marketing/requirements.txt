@@ -10,3 +10,4 @@ django-tailwind
 pandas
 openpyxl
 whitenoise
+python-docx

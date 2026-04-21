@@ -5,10 +5,12 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
+from django.http import HttpResponse, JsonResponse
 from django.core.paginator import Paginator
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
+from django.utils.text import slugify
 from django.views.generic import CreateView
 from urllib.parse import urlencode
 from .forms import (
@@ -38,6 +40,7 @@ from .models import (
 from .services.guideline_pipeline import process_guideline_document
 from .services.nccn_profiles import get_parser_profile
 from .services.panel_comparison import build_comparison_bundle
+from .services.strategy_exporter import build_strategy_docx
 from .services.panel_upload import save_uploaded_panel
 from .services.strategy_generator import generate_structured_strategy
 
@@ -339,6 +342,170 @@ def _market_snapshot(account: MarketAccount) -> dict:
 def _selected_market_accounts(market_accounts: list[MarketAccount], selected_ids: list[str]) -> list[MarketAccount]:
     selected_id_set = {item.strip() for item in selected_ids if item.strip().isdigit()}
     return [account for account in market_accounts if str(account.pk) in selected_id_set]
+
+
+def _strategy_export_filename(report: StrategyReport, fmt: str) -> str:
+    base = slugify(report.title or f"strategy-{report.pk}") or f"strategy-{report.pk}"
+    extension = "docx" if fmt == "docx" else fmt
+    return f"{base}.{extension}"
+
+
+def _strategy_export_payload(report: StrategyReport, latest_log: LLMGenerationLog | None) -> dict:
+    return {
+        "id": report.pk,
+        "title": report.title,
+        "disease_focus": report.disease_focus,
+        "status": report.status,
+        "your_panel": {
+            "name": report.your_panel.name,
+            "company": report.your_panel.company.name,
+            "sample_type": report.your_panel.get_sample_type_display(),
+            "price_bdt": str(report.your_panel.price) if report.your_panel.price is not None else "",
+            "tat": report.your_panel.tat,
+        },
+        "competitor_panel": {
+            "name": report.competitor_panel.name,
+            "company": report.competitor_panel.company.name,
+            "sample_type": report.competitor_panel.get_sample_type_display(),
+            "price_bdt": str(report.competitor_panel.price) if report.competitor_panel.price is not None else "",
+            "tat": report.competitor_panel.tat,
+        },
+        "market_accounts": report.report_json.get("market_accounts", []),
+        "primary_market_account": report.market_account.name if report.market_account else "",
+        "executive_summary": report.executive_summary,
+        "swot": report.swot_json,
+        "market_gap": report.market_gap_json,
+        "guideline_coverage_and_advantages": report.guideline_advantages_json,
+        "marketing_campaigns": report.campaigns_json,
+        "sales_pitch": report.sales_pitch_text,
+        "recommended_next_steps": report.report_json.get("recommended_next_steps", []),
+        "llm_audit": {
+            "provider": report.llm_provider,
+            "model": report.llm_model,
+            "prompt_tokens": latest_log.prompt_tokens if latest_log else 0,
+            "response_tokens": latest_log.response_tokens if latest_log else 0,
+            "total_tokens": latest_log.total_tokens if latest_log else 0,
+            "estimated_cost_usd": str(latest_log.estimated_cost_usd) if latest_log else "0",
+        },
+        "created_at": report.created_at.isoformat(),
+        "updated_at": report.updated_at.isoformat(),
+    }
+
+
+def _strategy_export_text(payload: dict) -> str:
+    lines = [
+        payload.get("title") or "Untitled Strategy Report",
+        "=" * 72,
+        "",
+        f"Disease Focus: {payload.get('disease_focus') or 'All diseases'}",
+        f"Status: {payload.get('status') or 'N/A'}",
+        "",
+        "Your Panel",
+        f"- Company: {payload['your_panel']['company']}",
+        f"- Name: {payload['your_panel']['name']}",
+        f"- Sample Type: {payload['your_panel']['sample_type']}",
+        f"- Price BDT: {payload['your_panel']['price_bdt'] or 'N/A'}",
+        f"- TAT: {payload['your_panel']['tat'] or 'N/A'}",
+        "",
+        "Competitor Panel",
+        f"- Company: {payload['competitor_panel']['company']}",
+        f"- Name: {payload['competitor_panel']['name']}",
+        f"- Sample Type: {payload['competitor_panel']['sample_type']}",
+        f"- Price BDT: {payload['competitor_panel']['price_bdt'] or 'N/A'}",
+        f"- TAT: {payload['competitor_panel']['tat'] or 'N/A'}",
+        "",
+        "Market Accounts",
+    ]
+    market_accounts = payload.get("market_accounts") or []
+    if market_accounts:
+        for account in market_accounts:
+            lines.append(f"- {account.get('name', 'Unknown')}{' | ' + account.get('city') if account.get('city') else ''}")
+    else:
+        lines.append("- None linked")
+
+    lines.extend(
+        [
+            "",
+            "Executive Summary",
+            payload.get("executive_summary") or "N/A",
+            "",
+            "SWOT",
+        ]
+    )
+    for key in ("strengths", "weaknesses", "opportunities", "threats"):
+        lines.append(f"{key.title()}:")
+        values = payload.get("swot", {}).get(key, []) or []
+        if values:
+            lines.extend(f"- {item}" for item in values)
+        else:
+            lines.append("- None")
+        lines.append("")
+
+    lines.extend(
+        [
+            "Market Gap",
+            f"- Unmet Need: {payload.get('market_gap', {}).get('unmet_need', 'N/A')}",
+            f"- Competitor Gap: {payload.get('market_gap', {}).get('competitor_gap', 'N/A')}",
+            f"- Your Gap: {payload.get('market_gap', {}).get('your_gap', 'N/A')}",
+            f"- Positioning Space: {payload.get('market_gap', {}).get('positioning_space', 'N/A')}",
+            "",
+            "Guideline Coverage And Advantages",
+        ]
+    )
+    for key in ("your_advantages", "competitor_advantages", "clinical_watchouts"):
+        lines.append(f"{key.replace('_', ' ').title()}:")
+        values = payload.get("guideline_coverage_and_advantages", {}).get(key, []) or []
+        if values:
+            lines.extend(f"- {item}" for item in values)
+        else:
+            lines.append("- None")
+        lines.append("")
+
+    lines.append("Marketing Campaigns")
+    campaigns = payload.get("marketing_campaigns", []) or []
+    if campaigns:
+        for index, campaign in enumerate(campaigns, start=1):
+            lines.extend(
+                [
+                    f"{index}. {campaign.get('name', 'Untitled Campaign')}",
+                    f"   Audience: {campaign.get('audience', 'N/A')}",
+                    f"   Message: {campaign.get('message', 'N/A')}",
+                    f"   Channel Mix: {campaign.get('channel_mix', 'N/A')}",
+                    f"   Proof Point: {campaign.get('proof_point', 'N/A')}",
+                    f"   Call To Action: {campaign.get('call_to_action', 'N/A')}",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(["- None", ""])
+
+    lines.extend(
+        [
+            "Sales Pitch",
+            payload.get("sales_pitch") or "N/A",
+            "",
+            "Recommended Next Steps",
+        ]
+    )
+    next_steps = payload.get("recommended_next_steps", []) or []
+    if next_steps:
+        lines.extend(f"- {step}" for step in next_steps)
+    else:
+        lines.append("- None")
+
+    lines.extend(
+        [
+            "",
+            "LLM Audit",
+            f"- Provider: {payload.get('llm_audit', {}).get('provider', 'N/A')}",
+            f"- Model: {payload.get('llm_audit', {}).get('model', 'N/A')}",
+            f"- Prompt Tokens: {payload.get('llm_audit', {}).get('prompt_tokens', 0)}",
+            f"- Response Tokens: {payload.get('llm_audit', {}).get('response_tokens', 0)}",
+            f"- Total Tokens: {payload.get('llm_audit', {}).get('total_tokens', 0)}",
+            f"- Estimated Cost USD: {payload.get('llm_audit', {}).get('estimated_cost_usd', '0')}",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _group_competitor_panels(panels: list[Panel]) -> list[dict]:
@@ -975,6 +1142,53 @@ def strategy_detail(request, pk):
         "latest_log": report.llm_logs.order_by("-created_at").first(),
     }
     return render(request, "medstratix/strategy_detail.html", context)
+
+
+@login_required
+def strategy_export(request, pk, fmt):
+    report = get_object_or_404(
+        StrategyReport.objects.select_related("your_panel__company", "competitor_panel__company", "market_account").prefetch_related("llm_logs"),
+        pk=pk,
+    )
+    latest_log = report.llm_logs.order_by("-created_at").first()
+    payload = _strategy_export_payload(report, latest_log)
+    export_format = (fmt or "").lower().strip()
+    filename = _strategy_export_filename(report, export_format)
+
+    if export_format == "json":
+        response = JsonResponse(payload, json_dumps_params={"indent": 2})
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "txt":
+        response = HttpResponse(_strategy_export_text(payload), content_type="text/plain; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "html":
+        response = render(
+            request,
+            "medstratix/strategy_export.html",
+            {
+                "page_title": report.title or f"Strategy {report.pk}",
+                "report": report,
+                "latest_log": latest_log,
+            },
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "docx":
+        document_buffer = build_strategy_docx(report, latest_log)
+        response = HttpResponse(
+            document_buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    messages.error(request, "Unsupported export format.")
+    return redirect("medstratix:strategy_detail", pk=report.pk)
 
 
 @login_required

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.title|default:"Strategy Report" }}</title>
+    <style>
+        body {
+            font-family: Georgia, "Times New Roman", serif;
+            margin: 2.5rem;
+            color: #1d1d1d;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            margin-bottom: 0.4rem;
+        }
+        .meta {
+            color: #555;
+            margin-bottom: 2rem;
+        }
+        .section {
+            margin-top: 2rem;
+        }
+        .card {
+            border: 1px solid #d9d9d9;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            background: #fafafa;
+        }
+        ul {
+            margin-top: 0.5rem;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e2e2;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ report.title|default:"Untitled Strategy Report" }}</h1>
+    <div class="meta">
+        <div>Disease Focus: {{ report.disease_focus|default:"All diseases" }}</div>
+        <div>Your Panel: {{ report.your_panel.company.name }} - {{ report.your_panel.name }}</div>
+        <div>Competitor Panel: {{ report.competitor_panel.company.name }} - {{ report.competitor_panel.name }}</div>
+        <div>Generated: {{ report.created_at }}</div>
+    </div>
+
+    <div class="section">
+        <h2>Executive Summary</h2>
+        <div class="card">{{ report.executive_summary|linebreaksbr }}</div>
+    </div>
+
+    <div class="section">
+        <h2>Market Context</h2>
+        <div class="card">
+            {% if report.report_json.market_accounts %}
+                <strong>Selected Accounts</strong>
+                <ul>
+                    {% for account in report.report_json.market_accounts %}
+                        <li>{{ account.name }}{% if account.city %} | {{ account.city }}{% endif %}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No market accounts linked.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>SWOT</h2>
+        <div class="card">
+            <h3>Strengths</h3>
+            <ul>{% for item in report.swot_json.strengths %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+            <h3>Weaknesses</h3>
+            <ul>{% for item in report.swot_json.weaknesses %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+            <h3>Opportunities</h3>
+            <ul>{% for item in report.swot_json.opportunities %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+            <h3>Threats</h3>
+            <ul>{% for item in report.swot_json.threats %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Market Gap</h2>
+        <div class="card">
+            <p><strong>Unmet Need:</strong> {{ report.market_gap_json.unmet_need }}</p>
+            <p><strong>Competitor Gap:</strong> {{ report.market_gap_json.competitor_gap }}</p>
+            <p><strong>Your Gap:</strong> {{ report.market_gap_json.your_gap }}</p>
+            <p><strong>Positioning Space:</strong> {{ report.market_gap_json.positioning_space }}</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Guideline Coverage And Advantages</h2>
+        <div class="card">
+            <h3>Your Advantages</h3>
+            <ul>{% for item in report.guideline_advantages_json.your_advantages %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+            <h3>Competitor Advantages</h3>
+            <ul>{% for item in report.guideline_advantages_json.competitor_advantages %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+            <h3>Clinical Watchouts</h3>
+            <ul>{% for item in report.guideline_advantages_json.clinical_watchouts %}<li>{{ item }}</li>{% empty %}<li>None</li>{% endfor %}</ul>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Marketing Campaigns</h2>
+        {% for campaign in report.campaigns_json %}
+            <div class="card">
+                <h3>{{ forloop.counter }}. {{ campaign.name }}</h3>
+                <p><strong>Audience:</strong> {{ campaign.audience }}</p>
+                <p><strong>Message:</strong> {{ campaign.message }}</p>
+                <p><strong>Channel Mix:</strong> {{ campaign.channel_mix }}</p>
+                <p><strong>Proof Point:</strong> {{ campaign.proof_point }}</p>
+                <p><strong>Call To Action:</strong> {{ campaign.call_to_action }}</p>
+            </div>
+        {% empty %}
+            <div class="card"><p>No campaigns saved.</p></div>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h2>Sales Pitch</h2>
+        <div class="card">{{ report.sales_pitch_text|linebreaksbr }}</div>
+    </div>
+
+    <div class="section">
+        <h2>Recommended Next Steps</h2>
+        <div class="card">
+            <ul>
+                {% for step in report.report_json.recommended_next_steps %}
+                    <li>{{ step }}</li>
+                {% empty %}
+                    <li>None</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    {% if latest_log %}
+        <div class="section">
+            <h2>LLM Audit</h2>
+            <div class="card">
+                <p><strong>Provider:</strong> {{ latest_log.provider }}</p>
+                <p><strong>Model:</strong> {{ latest_log.model_name }}</p>
+                <p><strong>Prompt Tokens:</strong> {{ latest_log.prompt_tokens }}</p>
+                <p><strong>Response Tokens:</strong> {{ latest_log.response_tokens }}</p>
+                <p><strong>Total Tokens:</strong> {{ latest_log.total_tokens }}</p>
+                <p><strong>Estimated Cost USD:</strong> {{ latest_log.estimated_cost_usd }}</p>
+            </div>
+        </div>
+    {% endif %}
+</body>
+</html>

@@ -11,6 +11,12 @@
             <p class="lead">
                 {{ report.executive_summary }}
             </p>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:strategy_export' report.pk 'docx' %}">Export Word</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_export' report.pk 'html' %}">Export HTML</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_export' report.pk 'txt' %}">Export TXT</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_export' report.pk 'json' %}">Export JSON</a>
+            </div>
         </div>
     </section>
 
