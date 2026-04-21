@@ -123,6 +123,12 @@ LOGIN_URL = "medstratix:signin"
 LOGIN_REDIRECT_URL = "medstratix:guideline_workspace"
 LOGOUT_REDIRECT_URL = "medstratix:home"
 
+PANEL_PRICE_FX = {
+    "BDT": 1,
+    "USD": float(os.getenv("PANEL_USD_TO_BDT", "122")),
+    "EUR": float(os.getenv("PANEL_EUR_TO_BDT", "133")),
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

@@ -73,6 +73,43 @@ class MatchType(models.TextChoices):
     INCOMPLETE_VARIANT_COVERAGE = "present_but_incomplete_for_variant_detection", "Present But Incomplete"
 
 
+class SampleType(models.TextChoices):
+    TISSUE = "tissue", "Tissue"
+    PLASMA = "plasma", "Plasma"
+    OTHER = "other", "Other"
+
+
+class SensitivityLevel(models.TextChoices):
+    LOW = "low", "Low"
+    MEDIUM = "medium", "Medium"
+    HIGH = "high", "High"
+    UNKNOWN = "unknown", "Unknown"
+
+
+class DecisionStyle(models.TextChoices):
+    INSTITUTION = "institution", "Institution Driven"
+    DOCTOR = "doctor", "Doctor Driven"
+    MIXED = "mixed", "Mixed"
+
+
+class InstitutionType(models.TextChoices):
+    HOSPITAL = "hospital", "Hospital"
+    DIAGNOSTIC_CENTER = "diagnostic_center", "Diagnostic Center"
+    CLINIC = "clinic", "Clinic"
+    CHAMBER = "chamber", "Physician Chamber"
+    OTHER = "other", "Other"
+
+
+class StakeholderRole(models.TextChoices):
+    DOCTOR = "doctor", "Doctor"
+    PATHOLOGIST = "pathologist", "Pathologist"
+    ONCOLOGIST = "oncologist", "Oncologist"
+    PROCUREMENT = "procurement", "Procurement"
+    ADMIN = "admin", "Administrator"
+    LAB_MANAGER = "lab_manager", "Lab Manager"
+    OTHER = "other", "Other"
+
+
 class Company(TimeStampedModel):
     name = models.CharField(max_length=255, unique=True)
     type = models.CharField(max_length=32, choices=CompanyType.choices, default=CompanyType.OTHER)
@@ -83,6 +120,49 @@ class Company(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+
+class MarketAccount(TimeStampedModel):
+    name = models.CharField(max_length=255)
+    institution_type = models.CharField(max_length=64, choices=InstitutionType.choices, default=InstitutionType.OTHER)
+    city = models.CharField(max_length=255, blank=True)
+    decision_style = models.CharField(max_length=32, choices=DecisionStyle.choices, default=DecisionStyle.MIXED)
+    disease_focus = models.CharField(max_length=255, blank=True)
+    estimated_test_volume = models.CharField(max_length=255, blank=True)
+    evidence_sensitivity = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    price_sensitivity = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    tat_sensitivity = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    conference_interest = models.BooleanField(default=False)
+    education_interest = models.BooleanField(default=False)
+    market_corruption_pressure = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    referral_distortion_risk = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    compliance_red_flags = models.TextField(blank=True)
+    ethical_growth_goal = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class MarketStakeholder(TimeStampedModel):
+    account = models.ForeignKey(MarketAccount, on_delete=models.CASCADE, related_name="stakeholders")
+    name = models.CharField(max_length=255)
+    role = models.CharField(max_length=64, choices=StakeholderRole.choices, default=StakeholderRole.OTHER)
+    specialty = models.CharField(max_length=255, blank=True)
+    influence_level = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    evidence_preference = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
+    conference_interest = models.BooleanField(default=False)
+    service_expectation = models.TextField(blank=True)
+    behavioral_notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["account__name", "name"]
+
+    def __str__(self):
+        return f"{self.account.name} - {self.name}"
 
 
 class Gene(TimeStampedModel):
@@ -102,6 +182,15 @@ class Gene(TimeStampedModel):
 class Panel(TimeStampedModel):
     name = models.CharField(max_length=255)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="panels")
+    sample_type = models.CharField(max_length=32, choices=SampleType.choices, default=SampleType.TISSUE)
+    supports_dna_ngs = models.BooleanField(default=True)
+    supports_rna_ngs = models.BooleanField(default=False)
+    supports_fusions = models.BooleanField(default=False)
+    supports_cnv = models.BooleanField(default=False)
+    supports_msi = models.BooleanField(default=False)
+    supports_tmb = models.BooleanField(default=False)
+    supports_ihc = models.BooleanField(default=False)
+    supports_fish = models.BooleanField(default=False)
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     tat = models.CharField("turnaround time", max_length=100, blank=True)
     genes = models.ManyToManyField(Gene, through="PanelGene", related_name="panels")
@@ -422,6 +511,24 @@ class StrategyReport(TimeStampedModel):
         blank=True,
         related_name="strategy_reports",
     )
+    market_account = models.ForeignKey(
+        MarketAccount,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="strategy_reports",
+    )
+    title = models.CharField(max_length=255, blank=True)
+    disease_focus = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=64, default="draft")
+    executive_summary = models.TextField(blank=True)
+    swot_json = models.JSONField(default=dict, blank=True)
+    market_gap_json = models.JSONField(default=dict, blank=True)
+    guideline_advantages_json = models.JSONField(default=dict, blank=True)
+    campaigns_json = models.JSONField(default=list, blank=True)
+    sales_pitch_text = models.TextField(blank=True)
+    llm_provider = models.CharField(max_length=100, blank=True)
+    llm_model = models.CharField(max_length=100, blank=True)
     report_json = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -429,6 +536,32 @@ class StrategyReport(TimeStampedModel):
 
     def __str__(self):
         return f"Strategy: {self.your_panel.name} vs {self.competitor_panel.name}"
+
+
+class LLMGenerationLog(TimeStampedModel):
+    strategy_report = models.ForeignKey(
+        StrategyReport,
+        on_delete=models.CASCADE,
+        related_name="llm_logs",
+    )
+    provider = models.CharField(max_length=100)
+    model_name = models.CharField(max_length=100)
+    operation = models.CharField(max_length=100, default="strategy_generation")
+    status = models.CharField(max_length=64, default="completed")
+    prompt_text = models.TextField(blank=True)
+    response_text = models.TextField(blank=True)
+    response_json = models.JSONField(default=dict, blank=True)
+    prompt_tokens = models.PositiveIntegerField(default=0)
+    response_tokens = models.PositiveIntegerField(default=0)
+    total_tokens = models.PositiveIntegerField(default=0)
+    estimated_cost_usd = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.provider}:{self.model_name} - {self.operation}"
 
 
 class PanelGuidelineMatch(TimeStampedModel):

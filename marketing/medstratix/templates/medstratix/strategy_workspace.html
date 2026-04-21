@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Strategy Workspace{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Strategy Workspace</span>
+            <h1 class="workspace-title">Saved strategic outputs with clinical context, campaigns, and LLM audit history.</h1>
+            <p class="lead">
+                This is the reusable strategy layer for MedStratix. Every saved report keeps its structured output and
+                the underlying LLM run trail.
+            </p>
+        </div>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Strategy Library</span>
+                <h2>{{ page_obj.paginator.count }} saved strategy report{{ page_obj.paginator.count|pluralize }}.</h2>
+            </div>
+            <p class="workspace-page-meta">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+        </div>
+
+        <form method="get" class="filter-bar">
+            <div class="filter-bar__group filter-bar__group--wide">
+                <label for="strategy-q">Search</label>
+                <input id="strategy-q" class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="Search title, panel, competitor, or disease">
+            </div>
+            <div class="filter-bar__group">
+                <label for="strategy-disease">Disease</label>
+                <input id="strategy-disease" class="form-control" type="text" name="disease" value="{{ filters.disease }}" placeholder="e.g. Non-Small Cell Lung Cancer">
+            </div>
+            <div class="filter-bar__actions">
+                <button class="button button-primary workspace-button" type="submit">Apply</button>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_workspace' %}">Reset</a>
+            </div>
+        </form>
+
+        {% if active_filter_chips %}
+            <div class="active-filters">
+                {% for chip in active_filter_chips %}
+                    <a class="filter-chip" href="{{ chip.remove_url }}">
+                        <span>{{ chip.label }}: {{ chip.value }}</span>
+                        <strong>Clear</strong>
+                    </a>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="workspace-list">
+            {% for report in reports %}
+                <article class="workspace-card">
+                    <div class="workspace-card__main">
+                        <div class="workspace-card__header">
+                            <div>
+                                <span class="workspace-card__type">{{ report.your_panel.company.name }} vs {{ report.competitor_panel.company.name }}</span>
+                                <h3>{{ report.title|default:"Untitled Strategy Report" }}</h3>
+                            </div>
+                            <div class="workspace-card__badges">
+                                <span class="status-pill">{{ report.disease_focus|default:"All diseases" }}</span>
+                            </div>
+                        </div>
+
+                        <div class="workspace-card__stats">
+                            <span>{{ report.created_at }}</span>
+                            <span>{{ report.llm_provider|default:"LLM N/A" }}</span>
+                            <span>{{ report.llm_model|default:"Model N/A" }}</span>
+                            <span>{{ report.campaigns_json|length }} campaigns</span>
+                        </div>
+
+                        <div class="workspace-card__profile">
+                            <strong>Executive Summary</strong>
+                            <p>{{ report.executive_summary|truncatechars:280 }}</p>
+                        </div>
+                    </div>
+                    <div class="workspace-card__actions">
+                        <a class="button button-primary workspace-button" href="{% url 'medstratix:strategy_detail' report.pk %}">Open Strategy</a>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h3>No strategy reports yet.</h3>
+                    <p>Generate strategy drafts from the panel comparison results page and they will show up here.</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="pager">
+            {% if page_obj.has_previous %}
+                <a class="pager__link" href="?page={{ page_obj.previous_page_number }}{{ filters.query_suffix }}">Previous</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Previous</span>
+            {% endif %}
+            <span class="pager__status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+                <a class="pager__link" href="?page={{ page_obj.next_page_number }}{{ filters.query_suffix }}">Next</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Next</span>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}

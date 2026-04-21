@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Comparison Results{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Comparison Results</span>
+            <h1 class="workspace-title">Full-width panel comparison with NCCN coverage, assay fit, and strategy drafts.</h1>
+            <p class="lead">
+                This page keeps the full comparison in one place, so we can filter by disease, compare multiple
+                competitors, and generate strategy notes without squeezing the analysis into the setup screen.
+            </p>
+        </div>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library workspace-panel--compact">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Selected Panels</span>
+                <h2>{{ your_panel.name }} vs {{ competitor_panels|length }} competitor panel{{ competitor_panels|length|pluralize }}.</h2>
+            </div>
+            <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_setup' %}">Change Selection</a>
+        </div>
+        <div class="compare-summary-grid">
+            <article class="mini-item mini-item--catalog">
+                <strong>Your Panel</strong>
+                <span>{{ your_panel.company.name }}</span>
+                <span>{{ your_panel.get_sample_type_display }} sample</span>
+                <span>{% if your_panel.price %}{{ your_panel.price }} BDT{% else %}Price not set{% endif %}</span>
+                <span>TAT: {{ your_panel.tat|default:"N/A" }}</span>
+            </article>
+            <article class="mini-item mini-item--catalog">
+                <strong>Competitor Set</strong>
+                <span>{{ grouped_competitors|length }} competitor compan{{ grouped_competitors|length|pluralize:"y,ies" }}</span>
+                <span>{{ competitor_panels|length }} selected panel{{ competitor_panels|length|pluralize }}</span>
+                <span>Disease filter: {{ filters.disease|default:"All diseases" }}</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library workspace-panel--compact">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Disease Filter</span>
+                <h2>Focus the comparison on one cancer type when you need a disease-specific view.</h2>
+            </div>
+        </div>
+        <form method="get" class="filter-bar filter-bar--dashboard">
+            <input type="hidden" name="your_panel" value="{{ filters.your_panel }}">
+            <input type="hidden" name="competitors" value="{{ filters.competitors }}">
+            <div class="filter-bar__group filter-bar__group--wide">
+                <label for="compare-disease">Cancer Type</label>
+                <select id="compare-disease" class="form-control" name="disease">
+                    <option value="">All reviewed diseases</option>
+                    {% for disease in disease_choices %}
+                        <option value="{{ disease }}" {% if filters.disease == disease %}selected{% endif %}>{{ disease }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__actions">
+                <button class="button button-primary workspace-button" type="submit">Apply Filter</button>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_result' %}?your_panel={{ filters.your_panel }}&competitors={{ filters.competitors }}">Reset</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="workspace-panel detail-panel compare-results-full">
+        <div class="section-heading">
+            <span class="eyebrow">Comparison Results</span>
+            <h2>Panel overlap and NCCN coverage are lined up together.</h2>
+        </div>
+
+        <section class="dashboard-metrics compare-metric-grid">
+            <article class="metric-card">
+                <span>Your Panel</span>
+                <strong>{{ comparison_bundle.your_panel.name }}</strong>
+            </article>
+            <article class="metric-card">
+                <span>Competitor Panels</span>
+                <strong>{{ comparison_bundle.competitor_comparisons|length }}</strong>
+            </article>
+            <article class="metric-card">
+                <span>Reviewed NCCN Guidelines</span>
+                <strong>{{ comparison_bundle.your_guideline_coverage.guideline_count }}</strong>
+            </article>
+            <article class="metric-card">
+                <span>Your Avg NCCN Coverage</span>
+                <strong>{{ comparison_bundle.your_guideline_coverage.average_coverage }}%</strong>
+            </article>
+        </section>
+
+        <div class="compare-results-grid">
+            {% for result in comparison_bundle.competitor_comparisons %}
+                <article class="mini-item mini-item--catalog">
+                    <div class="workspace-card__header">
+                        <div>
+                            <span class="workspace-card__type">{{ result.competitor_panel.company.name }}</span>
+                            <h3>{{ result.competitor_panel.name }}</h3>
+                        </div>
+                        <div class="workspace-card__badges">
+                            <span class="sample-type-pill">{{ result.competitor_panel.get_sample_type_display }}</span>
+                        </div>
+                    </div>
+
+                    <div class="workspace-card__stats">
+                        <span>{{ result.overlap_count }} overlapping genes</span>
+                        <span>{{ result.your_only_count }} only in your panel</span>
+                        <span>{{ result.competitor_only_count }} only in competitor</span>
+                    </div>
+
+                    <div class="compare-panel-metrics">
+                        <div class="mini-stack__item">
+                            <strong>Your panel retained</strong>
+                            <span>{{ result.your_coverage_percent }}% overlap retention</span>
+                        </div>
+                        <div class="mini-stack__item">
+                            <strong>Competitor retained</strong>
+                            <span>{{ result.competitor_coverage_percent }}% overlap retention</span>
+                        </div>
+                        <div class="mini-stack__item">
+                            <strong>Sample type</strong>
+                            <span>{% if result.sample_type_match %}Matched{% else %}Different{% endif %}</span>
+                        </div>
+                        <div class="mini-stack__item">
+                            <strong>Price delta</strong>
+                            <span>
+                                {% if result.price_delta is not None %}
+                                    {{ result.price_delta }} BDT
+                                {% else %}
+                                    Price comparison unavailable
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="compare-chip-grid">
+                        <div>
+                            <p class="workspace-card__variants-label">Overlap</p>
+                            <div class="gene-chip-row">
+                                {% for gene in result.overlap_preview %}
+                                    <span class="gene-chip">{{ gene }}</span>
+                                {% empty %}
+                                    <span class="table-subtle">No shared genes.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div>
+                            <p class="workspace-card__variants-label">Only In Your Panel</p>
+                            <div class="gene-chip-row">
+                                {% for gene in result.your_only_preview %}
+                                    <span class="gene-chip gene-chip--total">{{ gene }}</span>
+                                {% empty %}
+                                    <span class="table-subtle">No unique genes.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div>
+                            <p class="workspace-card__variants-label">Only In Competitor</p>
+                            <div class="gene-chip-row">
+                                {% for gene in result.competitor_only_preview %}
+                                    <span class="gene-chip gene-chip--variant">{{ gene }}</span>
+                                {% empty %}
+                                    <span class="table-subtle">No competitor-only genes.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="post" class="strategy-action-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="competitor_panel_id" value="{{ result.competitor_panel.pk }}">
+                        <div class="form-row">
+                            <label for="market-account-{{ result.competitor_panel.pk }}">Market Account Context</label>
+                            <select id="market-account-{{ result.competitor_panel.pk }}" class="form-control" name="market_account_ids" multiple size="5">
+                                {% for account in market_accounts %}
+                                    <option value="{{ account.pk }}" {% if account.pk|stringformat:"s" in selected_market_account_ids %}selected{% endif %}>{{ account.name }}{% if account.city %} | {{ account.city }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <p class="form-help">Use Ctrl or Cmd to select multiple account contexts for one strategy draft.</p>
+                        </div>
+                        <button class="button button-primary workspace-button" type="submit">Generate Strategy Draft</button>
+                    </form>
+                </article>
+            {% endfor %}
+        </div>
+
+        {% if strategy_outputs %}
+            <section class="workspace-panel workspace-panel--library workspace-panel--compact">
+                <div class="workspace-panel__top">
+                    <div class="section-heading">
+                        <span class="eyebrow">New Strategy Drafts</span>
+                        <h2>Gemini-generated strategy output for this comparison run.</h2>
+                    </div>
+                </div>
+                <div class="compare-company-list">
+                    {% for item in strategy_outputs %}
+                        <div class="compare-company-card">
+                            <strong>{{ item.title|default:item.competitor_panel.name }}</strong>
+                            <span class="table-subtle">{{ item.competitor_panel.company.name }} - {{ item.competitor_panel.name }}</span>
+                            <p class="strategy-text">{{ item.strategy_text|linebreaksbr }}</p>
+                            <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_detail' item.report_id %}">Open Full Strategy</a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if existing_strategy_reports %}
+            <section class="workspace-panel workspace-panel--library workspace-panel--compact">
+                <div class="workspace-panel__top">
+                    <div class="section-heading">
+                        <span class="eyebrow">Saved Strategy Drafts</span>
+                        <h2>Recent generated strategy notes for this panel set.</h2>
+                    </div>
+                </div>
+                <div class="compare-company-list">
+                    {% for report in existing_strategy_reports %}
+                        <div class="compare-company-card">
+                            <strong>{{ report.title|default:"Saved Strategy Report" }}</strong>
+                            <span class="table-subtle">{{ report.competitor_panel.company.name }} - {{ report.competitor_panel.name }}</span>
+                            <span class="table-subtle">{{ report.created_at }}</span>
+                            <p class="strategy-text">{{ report.executive_summary|default:"No executive summary stored."|linebreaksbr }}</p>
+                            <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_detail' report.pk %}">Open Full Strategy</a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <div class="detail-columns detail-columns--two">
+            <article class="detail-column">
+                <div class="detail-column__header">
+                    <h3>Your Covered NCCN Guidelines</h3>
+                    <span>{{ comparison_bundle.your_guideline_coverage.covered_guidelines|length }}</span>
+                </div>
+                <div class="detail-scroll">
+                    <div class="mini-list">
+                        {% for item in comparison_bundle.your_guideline_coverage.covered_guidelines %}
+                            <div class="mini-item mini-item--catalog">
+                                <strong>{{ item.guideline.cancer_type }}</strong>
+                                <span>{{ item.guideline.name }}</span>
+                                <span>{{ item.coverage_percent }}% coverage</span>
+                                <span>{{ item.matched_count }} / {{ item.reference_count }} genes</span>
+                                <span>Assay fit: {{ item.assay_fit_summary.strong }} strong, {{ item.assay_fit_summary.partial }} partial</span>
+                                <div class="gene-chip-row">
+                                    {% for gene in item.matched_symbols %}
+                                        <span class="gene-chip">{{ gene }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% if item.matched_variants %}
+                                    <div class="gene-chip-row">
+                                        {% for variant in item.matched_variants %}
+                                            <span class="gene-chip gene-chip--variant">{{ variant }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% empty %}
+                            <div class="empty-state">
+                                <h3>No covered NCCN guidelines yet.</h3>
+                                <p>Once guideline-derived biomarkers align with the panel, covered diseases will show here.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </article>
+
+            <article class="detail-column">
+                <div class="detail-column__header">
+                    <h3>Your Largest NCCN Gaps</h3>
+                    <span>{{ comparison_bundle.your_guideline_coverage.gap_guidelines|length }}</span>
+                </div>
+                <div class="detail-scroll">
+                    <div class="mini-list">
+                        {% for item in comparison_bundle.your_guideline_coverage.gap_guidelines %}
+                            <div class="mini-item mini-item--catalog">
+                                <strong>{{ item.guideline.cancer_type }}</strong>
+                                <span>{{ item.guideline.name }}</span>
+                                <span>{{ item.coverage_percent }}% coverage</span>
+                                <span>{{ item.missing_count }} missing guideline genes</span>
+                                <span>Assay fit: {{ item.assay_fit_summary.strong }} strong, {{ item.assay_fit_summary.partial }} partial</span>
+                                <div class="gene-chip-row">
+                                    {% for gene in item.missing_symbols %}
+                                        <span class="gene-chip gene-chip--variant">{{ gene }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% if item.missing_variants %}
+                                    <div class="gene-chip-row">
+                                        {% for variant in item.missing_variants %}
+                                            <span class="gene-chip gene-chip--variant-muted">{{ variant }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% empty %}
+                            <div class="empty-state">
+                                <h3>No gaps computed yet.</h3>
+                                <p>Guideline scoring will populate here once the comparison runs.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <div class="compare-company-list">
+            {% for competitor_coverage in comparison_bundle.competitor_guideline_coverages %}
+                <div class="compare-company-card">
+                    <div class="workspace-card__header">
+                        <div>
+                            <span class="workspace-card__type">{{ competitor_coverage.panel.company.name }}</span>
+                            <h3>{{ competitor_coverage.panel.name }}</h3>
+                        </div>
+                        <div class="workspace-card__badges">
+                            <span class="sample-type-pill">{{ competitor_coverage.panel.get_sample_type_display }}</span>
+                        </div>
+                    </div>
+                    <div class="workspace-card__stats">
+                        <span>{{ competitor_coverage.average_coverage }}% average NCCN coverage</span>
+                        <span>{{ competitor_coverage.guideline_count }} reviewed guidelines</span>
+                    </div>
+                    <div class="compare-coverage-grid">
+                        <div>
+                            <p class="workspace-card__variants-label">Strongest Guideline Coverage</p>
+                            <div class="mini-stack">
+                                {% for item in competitor_coverage.top_guidelines|slice:":3" %}
+                                    <div class="mini-stack__item">
+                                        <strong>{{ item.guideline.cancer_type }}</strong>
+                                        <span>{{ item.coverage_percent }}% coverage</span>
+                                    </div>
+                                {% empty %}
+                                    <span class="table-subtle">No guideline coverage yet.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div>
+                            <p class="workspace-card__variants-label">Largest Guideline Gaps</p>
+                            <div class="mini-stack">
+                                {% for item in competitor_coverage.lowest_guidelines|slice:":3" %}
+                                    <div class="mini-stack__item">
+                                        <strong>{{ item.guideline.cancer_type }}</strong>
+                                        <span>{{ item.missing_count }} missing genes</span>
+                                    </div>
+                                {% empty %}
+                                    <span class="table-subtle">No gap analysis yet.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <article class="workspace-panel detail-panel compare-guideline-table-panel">
+            <div class="workspace-panel__top">
+                <div class="section-heading">
+                    <span class="eyebrow">All NCCN Disease Coverage</span>
+                    <h2>Every reviewed guideline is listed here, so disease-specific rows like lung stay visible.</h2>
+                </div>
+            </div>
+
+            <div class="dashboard-table-wrap dashboard-table-wrap--bounded">
+                <table class="dashboard-table compare-guideline-table">
+                    <thead>
+                        <tr>
+                            <th>Cancer</th>
+                            <th>Guideline</th>
+                            <th>Status</th>
+                            <th>Coverage</th>
+                            <th>Assay Fit</th>
+                            <th>Matched Genes</th>
+                            <th>Missing Genes</th>
+                            <th>Variant Preview</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in comparison_bundle.your_guideline_coverage.results %}
+                            <tr>
+                                <td>{{ item.guideline.cancer_type }}</td>
+                                <td>{{ item.guideline.name }}</td>
+                                <td>{{ item.match_status }}</td>
+                                <td>{{ item.coverage_percent }}%</td>
+                                <td>
+                                    <div class="mini-stack">
+                                        <div class="mini-stack__item">
+                                            <strong>{{ item.assay_fit_summary.strong }} strong</strong>
+                                            <span>{{ item.assay_fit_summary.partial }} partial | {{ item.assay_fit_summary.missing }} missing</span>
+                                        </div>
+                                        {% for fit in item.assay_fit_preview %}
+                                            <div class="mini-stack__item">
+                                                <strong>{{ fit.symbol }}</strong>
+                                                <span>{{ fit.fit }} fit</span>
+                                                <span>{{ fit.note }}</span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="gene-chip-row">
+                                        {% for gene in item.matched_symbols %}
+                                            <span class="gene-chip">{{ gene }}</span>
+                                        {% empty %}
+                                            <span class="table-subtle">None</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="gene-chip-row">
+                                        {% for gene in item.missing_symbols %}
+                                            <span class="gene-chip gene-chip--variant">{{ gene }}</span>
+                                        {% empty %}
+                                            <span class="table-subtle">None</span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="gene-chip-row">
+                                        {% for variant in item.matched_variants %}
+                                            <span class="gene-chip gene-chip--variant-muted">{{ variant }}</span>
+                                        {% empty %}
+                                            {% for variant in item.missing_variants %}
+                                                <span class="gene-chip gene-chip--variant-muted">{{ variant }}</span>
+                                            {% empty %}
+                                                <span class="table-subtle">No variants captured</span>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="8">
+                                    <div class="empty-state empty-state--table">
+                                        <h3>No guideline coverage rows yet.</h3>
+                                        <p>Once panel genes and reviewed biomarkers are present, disease rows will appear here.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+</main>
+{% endblock %}

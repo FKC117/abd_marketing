@@ -9,6 +9,9 @@ from .models import (
     GuidelineDocument,
     GuidelineSection,
     GuidelineTherapyRule,
+    LLMGenerationLog,
+    MarketAccount,
+    MarketStakeholder,
     MolecularProfile,
     Panel,
     PanelGene,
@@ -38,6 +41,21 @@ class CompanyAdmin(admin.ModelAdmin):
     list_display = ["name", "type", "created_at"]
     list_filter = ["type"]
     search_fields = ["name"]
+
+
+@admin.register(MarketAccount)
+class MarketAccountAdmin(admin.ModelAdmin):
+    list_display = ["name", "institution_type", "city", "decision_style", "market_corruption_pressure", "created_at"]
+    list_filter = ["institution_type", "decision_style", "market_corruption_pressure", "referral_distortion_risk"]
+    search_fields = ["name", "city", "disease_focus", "notes"]
+
+
+@admin.register(MarketStakeholder)
+class MarketStakeholderAdmin(admin.ModelAdmin):
+    list_display = ["name", "account", "role", "specialty", "influence_level", "created_at"]
+    list_filter = ["role", "influence_level", "evidence_preference", "conference_interest"]
+    search_fields = ["name", "account__name", "specialty", "behavioral_notes"]
+    autocomplete_fields = ["account"]
 
 
 @admin.register(Gene)
@@ -145,9 +163,17 @@ class GuidelineTherapyRuleAdmin(admin.ModelAdmin):
 
 @admin.register(StrategyReport)
 class StrategyReportAdmin(admin.ModelAdmin):
-    list_display = ["your_panel", "competitor_panel", "guideline_document", "created_at"]
-    search_fields = ["your_panel__name", "competitor_panel__name", "guideline_document__name"]
-    autocomplete_fields = ["your_panel", "competitor_panel", "guideline_document"]
+    list_display = ["title", "your_panel", "competitor_panel", "market_account", "disease_focus", "llm_model", "created_at"]
+    search_fields = ["title", "your_panel__name", "competitor_panel__name", "guideline_document__name", "disease_focus", "market_account__name"]
+    autocomplete_fields = ["your_panel", "competitor_panel", "guideline_document", "market_account"]
+
+
+@admin.register(LLMGenerationLog)
+class LLMGenerationLogAdmin(admin.ModelAdmin):
+    list_display = ["strategy_report", "provider", "model_name", "status", "total_tokens", "estimated_cost_usd", "created_at"]
+    list_filter = ["provider", "model_name", "status"]
+    search_fields = ["strategy_report__title", "strategy_report__your_panel__name", "strategy_report__competitor_panel__name"]
+    autocomplete_fields = ["strategy_report"]
 
 
 @admin.register(PanelGuidelineMatch)

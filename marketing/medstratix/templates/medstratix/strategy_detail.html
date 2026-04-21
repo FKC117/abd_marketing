@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Strategy Detail{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Strategy Detail</span>
+            <h1 class="workspace-title">{{ report.title|default:"Untitled Strategy Report" }}</h1>
+            <p class="lead">
+                {{ report.executive_summary }}
+            </p>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics compare-metric-grid">
+        <article class="metric-card">
+            <span>Disease Focus</span>
+            <strong>{{ report.disease_focus|default:"All diseases" }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Primary Market Account</span>
+            <strong>{{ report.market_account.name|default:"None linked" }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Campaigns</span>
+            <strong>{{ report.campaigns_json|length }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>LLM Provider</span>
+            <strong>{{ report.llm_provider|default:"N/A" }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>LLM Model</span>
+            <strong>{{ report.llm_model|default:"N/A" }}</strong>
+        </article>
+    </section>
+
+    {% if report.market_account or report.report_json.market_accounts %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Market Context</span>
+                <h2>Institution and stakeholder reality used to shape this strategy.</h2>
+            </div>
+            {% if report.report_json.market_accounts %}
+                <div class="gene-chip-row">
+                    {% for account in report.report_json.market_accounts %}
+                        <span class="gene-chip">{{ account.name }}{% if account.city %} | {{ account.city }}{% endif %}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% if report.market_account %}
+                <div class="workspace-card__stats">
+                    <span>{{ report.market_account.get_institution_type_display }}</span>
+                    <span>{{ report.market_account.city|default:"Location N/A" }}</span>
+                    <span>Decision: {{ report.market_account.get_decision_style_display }}</span>
+                    <span>Market pressure: {{ report.market_account.get_market_corruption_pressure_display }}</span>
+                </div>
+                <div class="workspace-card__profile">
+                    <strong>Ethical Growth Goal</strong>
+                    <p>{{ report.market_account.ethical_growth_goal|default:"Not provided." }}</p>
+                </div>
+                <div class="workspace-card__profile">
+                    <strong>Compliance Red Flags</strong>
+                    <p>{{ report.market_account.compliance_red_flags|default:"Not provided." }}</p>
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+
+    <div class="detail-columns detail-columns--two">
+        <article class="detail-column">
+            <div class="detail-column__header">
+                <h3>SWOT</h3>
+                <span>4</span>
+            </div>
+            <div class="detail-scroll">
+                <div class="mini-list">
+                    <div class="mini-item mini-item--catalog">
+                        <strong>Strengths</strong>
+                        {% for item in report.swot_json.strengths %}
+                            <p>{{ item }}</p>
+                        {% empty %}<span class="table-subtle">None</span>{% endfor %}
+                    </div>
+                    <div class="mini-item mini-item--catalog">
+                        <strong>Weaknesses</strong>
+                        {% for item in report.swot_json.weaknesses %}
+                            <p>{{ item }}</p>
+                        {% empty %}<span class="table-subtle">None</span>{% endfor %}
+                    </div>
+                    <div class="mini-item mini-item--catalog">
+                        <strong>Opportunities</strong>
+                        {% for item in report.swot_json.opportunities %}
+                            <p>{{ item }}</p>
+                        {% empty %}<span class="table-subtle">None</span>{% endfor %}
+                    </div>
+                    <div class="mini-item mini-item--catalog">
+                        <strong>Threats</strong>
+                        {% for item in report.swot_json.threats %}
+                            <p>{{ item }}</p>
+                        {% empty %}<span class="table-subtle">None</span>{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <article class="detail-column">
+            <div class="detail-column__header">
+                <h3>Market Gap</h3>
+                <span>4</span>
+            </div>
+            <div class="detail-scroll">
+                <div class="mini-list">
+                    <div class="mini-item mini-item--catalog"><strong>Unmet Need</strong><p>{{ report.market_gap_json.unmet_need }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Competitor Gap</strong><p>{{ report.market_gap_json.competitor_gap }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Your Gap</strong><p>{{ report.market_gap_json.your_gap }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Positioning Space</strong><p>{{ report.market_gap_json.positioning_space }}</p></div>
+                </div>
+            </div>
+        </article>
+    </div>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Guideline Advantage</span>
+            <h2>Guideline coverage and competitive advantage statements.</h2>
+        </div>
+        <div class="detail-columns detail-columns--two">
+            <article class="detail-column">
+                <div class="detail-column__header"><h3>Your Advantages</h3><span>{{ report.guideline_advantages_json.your_advantages|length }}</span></div>
+                <div class="detail-scroll">
+                    <div class="mini-list">
+                        {% for item in report.guideline_advantages_json.your_advantages %}
+                            <div class="mini-item mini-item--catalog"><p>{{ item }}</p></div>
+                        {% empty %}<div class="empty-state"><p>No entries.</p></div>{% endfor %}
+                    </div>
+                </div>
+            </article>
+            <article class="detail-column">
+                <div class="detail-column__header"><h3>Competitor Advantages / Watchouts</h3><span>{{ report.guideline_advantages_json.competitor_advantages|length }}</span></div>
+                <div class="detail-scroll">
+                    <div class="mini-list">
+                        {% for item in report.guideline_advantages_json.competitor_advantages %}
+                            <div class="mini-item mini-item--catalog"><p>{{ item }}</p></div>
+                        {% endfor %}
+                        {% for item in report.guideline_advantages_json.clinical_watchouts %}
+                            <div class="mini-item mini-item--catalog"><p>{{ item }}</p></div>
+                        {% empty %}<div class="empty-state"><p>No entries.</p></div>{% endfor %}
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Marketing Campaigns</span>
+            <h2>At least ten marketing campaign directions generated from the strategic comparison.</h2>
+        </div>
+        <div class="compare-company-list">
+            {% for campaign in report.campaigns_json %}
+                <div class="compare-company-card">
+                    <strong>{{ forloop.counter }}. {{ campaign.name }}</strong>
+                    <p><strong>Audience:</strong> {{ campaign.audience }}</p>
+                    <p><strong>Message:</strong> {{ campaign.message }}</p>
+                    <p><strong>Channel Mix:</strong> {{ campaign.channel_mix }}</p>
+                    <p><strong>Proof Point:</strong> {{ campaign.proof_point }}</p>
+                    <p><strong>Call To Action:</strong> {{ campaign.call_to_action }}</p>
+                </div>
+            {% empty %}
+                <div class="empty-state"><p>No campaigns saved.</p></div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Sales Pitch</span>
+            <h2>Commercial language built from the strategy output.</h2>
+        </div>
+        <p class="strategy-text">{{ report.sales_pitch_text|linebreaksbr }}</p>
+    </section>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">LLM Audit</span>
+            <h2>Stored prompt, response, tokens, and cost.</h2>
+        </div>
+        {% if latest_log %}
+            <div class="dashboard-metrics compare-metric-grid">
+                <article class="metric-card"><span>Prompt Tokens</span><strong>{{ latest_log.prompt_tokens }}</strong></article>
+                <article class="metric-card"><span>Response Tokens</span><strong>{{ latest_log.response_tokens }}</strong></article>
+                <article class="metric-card"><span>Total Tokens</span><strong>{{ latest_log.total_tokens }}</strong></article>
+                <article class="metric-card"><span>Estimated Cost USD</span><strong>{{ latest_log.estimated_cost_usd }}</strong></article>
+            </div>
+            <div class="detail-columns detail-columns--two">
+                <article class="detail-column">
+                    <div class="detail-column__header"><h3>Prompt</h3><span>{{ latest_log.provider }}</span></div>
+                    <div class="detail-scroll"><pre class="section-text">{{ latest_log.prompt_text }}</pre></div>
+                </article>
+                <article class="detail-column">
+                    <div class="detail-column__header"><h3>Response</h3><span>{{ latest_log.model_name }}</span></div>
+                    <div class="detail-scroll"><pre class="section-text">{{ latest_log.response_text }}</pre></div>
+                </article>
+            </div>
+        {% else %}
+            <div class="empty-state"><p>No LLM log found for this strategy report.</p></div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

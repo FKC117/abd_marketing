@@ -676,6 +676,29 @@ ul.errorlist {
     margin-top: 1.5rem;
 }
 
+.panel-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.panel-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem 1rem;
+}
+
+.form-row--full {
+    grid-column: 1 / -1;
+}
+
+.panel-form-note {
+    margin-top: 0.9rem;
+    color: var(--muted);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
 .workspace-panel--form {
     position: sticky;
     top: 5.8rem;
@@ -685,6 +708,10 @@ ul.errorlist {
 .workspace-panel--library,
 .dashboard-panel {
     padding: 1.8rem;
+}
+
+.workspace-panel--compact {
+    margin-top: 1.5rem;
 }
 
 .workspace-shell--dashboard {
@@ -796,6 +823,18 @@ ul.errorlist {
     gap: 0.65rem;
     align-content: start;
     min-width: 210px;
+}
+
+.sample-type-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(15, 118, 110, 0.12);
+    color: var(--primary-deep);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
 }
 
 .filter-bar {
@@ -929,6 +968,10 @@ ul.errorlist {
 
 .detail-columns--four {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.detail-columns--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .detail-column {
@@ -1085,6 +1128,127 @@ ul.errorlist {
 
 .panel-catalog__scroll--tall {
     max-height: 48rem;
+}
+
+.panel-editor__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.compare-form-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.checkbox-grid ul {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.checkbox-grid li {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.78);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
+.checkbox-grid label {
+    display: flex;
+    gap: 0.8rem;
+    align-items: start;
+    cursor: pointer;
+}
+
+.checkbox-grid input[type="checkbox"] {
+    margin-top: 0.18rem;
+}
+
+.compare-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.compare-company-list {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.compare-company-card {
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.compare-company-card strong {
+    font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
+.compare-metric-grid {
+    margin-top: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.compare-results-grid {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.compare-guideline-table-panel {
+    margin-top: 1.5rem;
+    padding: 0;
+    overflow: hidden;
+}
+
+.compare-guideline-table-panel .workspace-panel__top {
+    padding: 1.8rem 1.8rem 0;
+}
+
+.compare-guideline-table td .gene-chip-row {
+    margin-top: 0;
+}
+
+.compare-results-full {
+    margin-top: 1.5rem;
+}
+
+.strategy-action-form {
+    margin-top: 1rem;
+}
+
+.strategy-text {
+    margin-top: 0.9rem;
+    white-space: pre-wrap;
+}
+
+.compare-panel-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.compare-chip-grid {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.compare-coverage-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
 }
 
 .panel-total-list {
@@ -1337,7 +1501,12 @@ ul.errorlist {
     .dashboard-metrics--wide,
     .workspace-strip,
     .workspace-stage,
-    .workspace-shell {
+    .workspace-shell,
+    .panel-upload-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-form-grid {
         grid-template-columns: 1fr;
     }
 
@@ -1346,6 +1515,17 @@ ul.errorlist {
     }
 
     .panel-catalog {
+        grid-template-columns: 1fr;
+    }
+
+    .compare-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .compare-panel-metrics,
+    .compare-coverage-grid,
+    .detail-columns--two,
+    .compare-metric-grid {
         grid-template-columns: 1fr;
     }
 

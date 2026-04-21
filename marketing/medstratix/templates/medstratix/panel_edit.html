@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Panel{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Edit Panel</span>
+            <h1 class="workspace-title">Update panel details, sample type, price, TAT, and gene membership.</h1>
+            <p class="lead">
+                We keep the editing flow simple: update the record in one place, save it, and the panel library stays current.
+            </p>
+        </div>
+    </section>
+
+    <section class="workspace-grid workspace-grid--stacked">
+        <article class="workspace-panel detail-panel">
+            <div class="workspace-card__header">
+                <div>
+                    <span class="workspace-card__type">{{ panel.company.name }}</span>
+                    <h2>{{ panel.name }}</h2>
+                </div>
+                <div class="workspace-card__badges">
+                    <span class="status-pill">
+                        {% if panel.company.type == "yours" %}Your Panel{% else %}Competitor{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="workspace-card__stats">
+                <span>Sample: {{ panel.get_sample_type_display }}</span>
+                <span>Price: {% if panel.price %}{{ panel.price }} BDT{% else %}N/A{% endif %}</span>
+                <span>TAT: {{ panel.tat|default:"N/A" }}</span>
+            </div>
+            <div class="workspace-card__variants">
+                <p class="workspace-card__variants-label">Current Capabilities</p>
+                <div class="gene-chip-row">
+                    {% if panel.supports_dna_ngs %}<span class="gene-chip gene-chip--total">DNA NGS</span>{% endif %}
+                    {% if panel.supports_rna_ngs %}<span class="gene-chip gene-chip--total">RNA NGS</span>{% endif %}
+                    {% if panel.supports_fusions %}<span class="gene-chip gene-chip--total">Fusion Detection</span>{% endif %}
+                    {% if panel.supports_cnv %}<span class="gene-chip gene-chip--total">CNV</span>{% endif %}
+                    {% if panel.supports_msi %}<span class="gene-chip gene-chip--total">MSI</span>{% endif %}
+                    {% if panel.supports_tmb %}<span class="gene-chip gene-chip--total">TMB</span>{% endif %}
+                    {% if panel.supports_ihc %}<span class="gene-chip gene-chip--total">IHC</span>{% endif %}
+                    {% if panel.supports_fish %}<span class="gene-chip gene-chip--total">FISH</span>{% endif %}
+                </div>
+            </div>
+        </article>
+
+        <article class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Edit Form</span>
+                <h2>Save the panel with its latest commercial and gene content details.</h2>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="styled-form">
+                {% csrf_token %}
+                <div class="panel-form-grid">
+                    {% for field in form %}
+                        {% if field.is_hidden %}
+                            {{ field }}
+                        {% else %}
+                            <div class="form-row {% if field.name == 'gene_text' or field.name == 'gene_file' %}form-row--full{% endif %}">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% for error in field.errors %}
+                                    <p class="form-error">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% for error in form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
+                <div class="panel-editor__actions">
+                    <button class="button button-primary" type="submit">Save Changes</button>
+                    <a class="button button-secondary" href="{% url 'medstratix:panel_workspace' %}">Back To Panels</a>
+                </div>
+            </form>
+        </article>
+    </section>
+</main>
+{% endblock %}

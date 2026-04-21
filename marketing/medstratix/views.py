@@ -10,17 +10,35 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import CreateView
 from urllib.parse import urlencode
-from .forms import GuidelineUploadForm, SignInForm, SignUpForm
+from .forms import (
+    GuidelineUploadForm,
+    MarketAccountForm,
+    MarketStakeholderForm,
+    PanelComparisonSelectForm,
+    PanelUploadForm,
+    SignInForm,
+    SignUpForm,
+)
 from .models import (
     BiomarkerDefinition,
     BiomarkerVariantRule,
+    CompanyType,
     GuidelineDocument,
     GuidelineTherapyRule,
+    LLMGenerationLog,
+    MarketAccount,
+    MarketStakeholder,
+    Panel,
+    SampleType,
+    StrategyReport,
     TestingMethodRule,
     TestingMethodType,
 )
 from .services.guideline_pipeline import process_guideline_document
 from .services.nccn_profiles import get_parser_profile
+from .services.panel_comparison import build_comparison_bundle
+from .services.panel_upload import save_uploaded_panel
+from .services.strategy_generator import generate_structured_strategy
 
 
 def _guideline_depth_label(guideline: GuidelineDocument) -> str:
@@ -82,12 +100,27 @@ def _build_query_string(current_filters: dict, **updates) -> str:
     return f"?{encoded}" if encoded else ""
 
 
+def _serialize_competitor_ids(panels: list[Panel]) -> str:
+    return ",".join(str(panel.pk) for panel in panels)
+
+
+def _parse_competitor_ids(raw_value: str) -> list[int]:
+    values = []
+    for token in (raw_value or "").split(","):
+        token = token.strip()
+        if token.isdigit():
+            values.append(int(token))
+    return values
+
+
 def _active_filter_chips(filters: dict, base_route: str) -> list[dict]:
     labels = {
         "q": "Search",
         "status": "Status",
         "depth": "Depth",
         "sort": "Sort",
+        "owner": "Owner",
+        "disease": "Disease",
     }
     chips = []
     for key, value in filters.items():
@@ -237,6 +270,114 @@ def _aggregate_biomarker_catalog(search_query: str = "") -> dict:
         "unique_gene_count": len(unique_genes),
         "unique_variants": unique_variants,
         "unique_variant_count": len(unique_variants),
+    }
+
+
+def _panel_snapshot(panel: Panel) -> dict:
+    gene_symbols = list(panel.panel_genes.select_related("gene").order_by("gene__symbol").values_list("gene__symbol", flat=True))
+    capabilities = []
+    capability_map = (
+        ("supports_dna_ngs", "DNA NGS"),
+        ("supports_rna_ngs", "RNA NGS"),
+        ("supports_fusions", "Fusion Detection"),
+        ("supports_cnv", "CNV"),
+        ("supports_msi", "MSI"),
+        ("supports_tmb", "TMB"),
+        ("supports_ihc", "IHC"),
+        ("supports_fish", "FISH"),
+    )
+    for attr, label in capability_map:
+        if getattr(panel, attr, False):
+            capabilities.append(label)
+    return {
+        "panel": panel,
+        "gene_count": len(gene_symbols),
+        "gene_preview": gene_symbols[:10],
+        "gene_overflow": max(len(gene_symbols) - 10, 0),
+        "sample_type_label": panel.get_sample_type_display(),
+        "capabilities": capabilities,
+    }
+
+
+def _panel_initial(panel: Panel) -> dict:
+    gene_text = "\n".join(
+        panel.panel_genes.select_related("gene").order_by("gene__symbol").values_list("gene__symbol", flat=True)
+    )
+    return {
+        "company_name": panel.company.name,
+        "panel_name": panel.name,
+        "sample_type": panel.sample_type,
+        "supports_dna_ngs": panel.supports_dna_ngs,
+        "supports_rna_ngs": panel.supports_rna_ngs,
+        "supports_fusions": panel.supports_fusions,
+        "supports_cnv": panel.supports_cnv,
+        "supports_msi": panel.supports_msi,
+        "supports_tmb": panel.supports_tmb,
+        "supports_ihc": panel.supports_ihc,
+        "supports_fish": panel.supports_fish,
+        "price": panel.price,
+        "price_currency": "BDT",
+        "tat": panel.tat,
+        "gene_text": gene_text,
+        "company_type": panel.company.type,
+    }
+
+
+def _market_snapshot(account: MarketAccount) -> dict:
+    stakeholders = list(account.stakeholders.order_by("name"))
+    return {
+        "account": account,
+        "stakeholders": stakeholders,
+        "stakeholder_count": len(stakeholders),
+    }
+
+
+def _selected_market_accounts(market_accounts: list[MarketAccount], selected_ids: list[str]) -> list[MarketAccount]:
+    selected_id_set = {item.strip() for item in selected_ids if item.strip().isdigit()}
+    return [account for account in market_accounts if str(account.pk) in selected_id_set]
+
+
+def _group_competitor_panels(panels: list[Panel]) -> list[dict]:
+    grouped: dict[str, list[Panel]] = defaultdict(list)
+    for panel in panels:
+        grouped[panel.company.name].append(panel)
+    return [
+        {
+            "company": company,
+            "panels": sorted(items, key=lambda item: item.name.lower()),
+        }
+        for company, items in sorted(grouped.items(), key=lambda item: item[0].lower())
+    ]
+
+
+def _filter_coverage_payload(payload: dict, disease_filter: str) -> dict:
+    if not disease_filter:
+        return payload
+
+    filtered_results = [
+        item for item in payload["results"]
+        if item["guideline"].cancer_type.lower() == disease_filter.lower()
+    ]
+    matched_total = sum(item["matched_count"] for item in filtered_results)
+    reference_total = sum(item["reference_count"] for item in filtered_results)
+    average = (matched_total * 100 / reference_total) if reference_total else 0
+    covered_guidelines = [item for item in filtered_results if item["matched_count"] > 0]
+    gap_guidelines = [
+        item for item in sorted(
+            filtered_results,
+            key=lambda item: (item["coverage_percent"], item["guideline"].cancer_type.lower(), item["guideline"].name.lower()),
+        )
+        if item["missing_count"] > 0
+    ]
+    return {
+        **payload,
+        "results": filtered_results,
+        "guideline_count": len(filtered_results),
+        "average_coverage": f"{average:.2f}",
+        "covered_guidelines": covered_guidelines,
+        "gap_guidelines": gap_guidelines,
+        "top_guidelines": filtered_results[:6],
+        "lowest_guidelines": gap_guidelines[:6],
     }
 
 
@@ -406,6 +547,411 @@ def guideline_workspace(request):
         ),
     }
     return render(request, "medstratix/guideline_workspace.html", context)
+
+
+@login_required
+def panel_workspace(request):
+    if request.method == "POST":
+        upload_kind = request.POST.get("upload_kind", "").strip()
+        company_type = CompanyType.YOURS if upload_kind == "yours" else CompanyType.COMPETITOR
+        your_form = PanelUploadForm(
+            request.POST if upload_kind == "yours" else None,
+            request.FILES if upload_kind == "yours" else None,
+            prefix="yours",
+            company_type=CompanyType.YOURS,
+        )
+        competitor_form = PanelUploadForm(
+            request.POST if upload_kind == "competitor" else None,
+            request.FILES if upload_kind == "competitor" else None,
+            prefix="competitor",
+            company_type=CompanyType.COMPETITOR,
+        )
+        active_form = your_form if upload_kind == "yours" else competitor_form
+        if active_form.is_valid():
+            result = save_uploaded_panel(
+                company_name=active_form.cleaned_data["company_name"],
+                company_type=company_type,
+                panel_name=active_form.cleaned_data["panel_name"],
+                sample_type=active_form.cleaned_data.get("sample_type", SampleType.TISSUE),
+                supports_dna_ngs=active_form.cleaned_data.get("supports_dna_ngs", False),
+                supports_rna_ngs=active_form.cleaned_data.get("supports_rna_ngs", False),
+                supports_fusions=active_form.cleaned_data.get("supports_fusions", False),
+                supports_cnv=active_form.cleaned_data.get("supports_cnv", False),
+                supports_msi=active_form.cleaned_data.get("supports_msi", False),
+                supports_tmb=active_form.cleaned_data.get("supports_tmb", False),
+                supports_ihc=active_form.cleaned_data.get("supports_ihc", False),
+                supports_fish=active_form.cleaned_data.get("supports_fish", False),
+                price=active_form.cleaned_data.get("price"),
+                price_currency=active_form.cleaned_data.get("price_currency", "BDT"),
+                tat=active_form.cleaned_data.get("tat", ""),
+                gene_text=active_form.cleaned_data.get("gene_text", ""),
+                gene_file=active_form.cleaned_data.get("gene_file"),
+            )
+            messages.success(
+                request,
+                f"{result['panel'].name} saved for {result['company'].name}. "
+                f"Loaded {result['gene_count']} genes. {result['price_note']}",
+            )
+            return redirect("medstratix:panel_workspace")
+    else:
+        your_form = PanelUploadForm(prefix="yours", company_type=CompanyType.YOURS)
+        competitor_form = PanelUploadForm(prefix="competitor", company_type=CompanyType.COMPETITOR)
+
+    search_query = request.GET.get("q", "").strip()
+    owner_filter = request.GET.get("owner", "").strip()
+    sort_by = request.GET.get("sort", "updated")
+
+    panel_qs = Panel.objects.select_related("company").prefetch_related("panel_genes__gene")
+    if search_query:
+        panel_qs = panel_qs.filter(
+            Q(name__icontains=search_query)
+            | Q(company__name__icontains=search_query)
+            | Q(panel_genes__gene__symbol__icontains=search_query)
+        ).distinct()
+    if owner_filter == "yours":
+        panel_qs = panel_qs.filter(company__type=CompanyType.YOURS)
+    elif owner_filter == "competitor":
+        panel_qs = panel_qs.filter(company__type=CompanyType.COMPETITOR)
+
+    panel_sort_map = {
+        "updated": ("-updated_at", "-created_at"),
+        "name": ("name",),
+        "company": ("company__name", "name"),
+        "price": ("price", "name"),
+    }
+    panel_qs = panel_qs.order_by(*panel_sort_map.get(sort_by, panel_sort_map["updated"]))
+    paginator = Paginator(panel_qs, 10)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    panel_snapshots = [_panel_snapshot(panel) for panel in page_obj.object_list]
+
+    your_count = panel_qs.filter(company__type=CompanyType.YOURS).count()
+    competitor_count = panel_qs.filter(company__type=CompanyType.COMPETITOR).count()
+
+    context = {
+        "page_title": "Panel Workspace",
+        "your_form": your_form,
+        "competitor_form": competitor_form,
+        "panels": panel_snapshots,
+        "page_obj": page_obj,
+        "summary": {
+            "total": panel_qs.count(),
+            "your_count": your_count,
+            "competitor_count": competitor_count,
+        },
+        "filters": {
+            "q": search_query,
+            "owner": owner_filter,
+            "sort": sort_by,
+            "query_suffix": _query_without_page(request),
+        },
+        "active_filter_chips": _active_filter_chips(
+            {"q": search_query, "owner": owner_filter, "sort": sort_by},
+            reverse_lazy("medstratix:panel_workspace"),
+        ),
+    }
+    return render(request, "medstratix/panel_workspace.html", context)
+
+
+@login_required
+def panel_edit(request, pk):
+    panel = get_object_or_404(Panel.objects.select_related("company"), pk=pk)
+    if request.method == "POST":
+        form = PanelUploadForm(request.POST, request.FILES, company_type=panel.company.type)
+        if form.is_valid():
+            result = save_uploaded_panel(
+                company_name=form.cleaned_data["company_name"],
+                company_type=panel.company.type,
+                panel_name=form.cleaned_data["panel_name"],
+                sample_type=form.cleaned_data.get("sample_type", SampleType.TISSUE),
+                supports_dna_ngs=form.cleaned_data.get("supports_dna_ngs", False),
+                supports_rna_ngs=form.cleaned_data.get("supports_rna_ngs", False),
+                supports_fusions=form.cleaned_data.get("supports_fusions", False),
+                supports_cnv=form.cleaned_data.get("supports_cnv", False),
+                supports_msi=form.cleaned_data.get("supports_msi", False),
+                supports_tmb=form.cleaned_data.get("supports_tmb", False),
+                supports_ihc=form.cleaned_data.get("supports_ihc", False),
+                supports_fish=form.cleaned_data.get("supports_fish", False),
+                price=form.cleaned_data.get("price"),
+                price_currency=form.cleaned_data.get("price_currency", "BDT"),
+                tat=form.cleaned_data.get("tat", ""),
+                gene_text=form.cleaned_data.get("gene_text", ""),
+                gene_file=form.cleaned_data.get("gene_file"),
+                existing_panel=panel,
+            )
+            messages.success(request, f"{result['panel'].name} updated successfully. {result['price_note']}")
+            return redirect("medstratix:panel_workspace")
+    else:
+        form = PanelUploadForm(initial=_panel_initial(panel), company_type=panel.company.type)
+
+    context = {
+        "page_title": f"Edit {panel.name}",
+        "panel": panel,
+        "form": form,
+    }
+    return render(request, "medstratix/panel_edit.html", context)
+
+
+@login_required
+def panel_compare_setup(request):
+    if request.method == "POST":
+        form = PanelComparisonSelectForm(request.POST)
+        if form.is_valid():
+            selected_your_panel = form.cleaned_data["your_panel"]
+            selected_competitors = list(form.cleaned_data["competitor_panels"])
+            if not selected_competitors:
+                messages.error(request, "Choose at least one competitor panel for comparison.")
+            else:
+                return redirect(
+                    f"{reverse_lazy('medstratix:panel_compare_result')}"
+                    f"?your_panel={selected_your_panel.pk}&competitors={_serialize_competitor_ids(selected_competitors)}"
+                )
+    else:
+        form = PanelComparisonSelectForm()
+
+    context = {
+        "page_title": "Panel Comparison Setup",
+        "form": form,
+    }
+    return render(request, "medstratix/panel_compare_setup.html", context)
+
+
+@login_required
+def panel_compare_result(request):
+    your_panel_id = request.GET.get("your_panel", "").strip()
+    competitor_ids = _parse_competitor_ids(request.GET.get("competitors", ""))
+    disease_filter = request.GET.get("disease", "").strip()
+
+    if not your_panel_id.isdigit() or not competitor_ids:
+        messages.error(request, "Select one of your panels and at least one competitor panel to view results.")
+        return redirect("medstratix:panel_compare_setup")
+
+    your_panel = get_object_or_404(Panel.objects.select_related("company"), pk=int(your_panel_id), company__type=CompanyType.YOURS)
+    competitor_panels = list(
+        Panel.objects.select_related("company")
+        .filter(pk__in=competitor_ids, company__type=CompanyType.COMPETITOR)
+        .order_by("company__name", "name")
+    )
+    if not competitor_panels:
+        messages.error(request, "No competitor panels were found for this comparison.")
+        return redirect("medstratix:panel_compare_setup")
+
+    comparison_bundle = build_comparison_bundle(your_panel, competitor_panels)
+    market_accounts = list(MarketAccount.objects.prefetch_related("stakeholders").order_by("name"))
+    disease_choices = sorted(
+        {item["guideline"].cancer_type for item in comparison_bundle["your_guideline_coverage"]["results"] if item["guideline"].cancer_type}
+    )
+    grouped_competitors = _group_competitor_panels(competitor_panels)
+
+    if disease_filter:
+        comparison_bundle = {
+            **comparison_bundle,
+            "your_guideline_coverage": _filter_coverage_payload(comparison_bundle["your_guideline_coverage"], disease_filter),
+            "competitor_guideline_coverages": [
+                _filter_coverage_payload(payload, disease_filter)
+                for payload in comparison_bundle["competitor_guideline_coverages"]
+            ],
+        }
+
+    strategy_outputs = []
+    selected_market_account_ids = []
+    if request.method == "POST":
+        competitor_panel_id = request.POST.get("competitor_panel_id", "").strip()
+        selected_market_account_ids = request.POST.getlist("market_account_ids")
+        target_competitor = next((panel for panel in competitor_panels if str(panel.pk) == competitor_panel_id), None)
+        selected_accounts = _selected_market_accounts(market_accounts, selected_market_account_ids)
+        primary_account = selected_accounts[0] if selected_accounts else None
+        selected_stakeholders = []
+        for account in selected_accounts:
+            selected_stakeholders.extend(list(account.stakeholders.all()))
+        if target_competitor:
+            competitor_bundle = next(
+                (payload for payload in comparison_bundle["competitor_guideline_coverages"] if payload["panel"].pk == target_competitor.pk),
+                None,
+            )
+            comparison_pair = next(
+                (payload for payload in comparison_bundle["competitor_comparisons"] if payload["competitor_panel"].pk == target_competitor.pk),
+                None,
+            )
+            try:
+                strategy_result = generate_structured_strategy(
+                    your_panel=your_panel,
+                    competitor_panel=target_competitor,
+                    comparison_pair=comparison_pair,
+                    your_guideline_coverage=comparison_bundle["your_guideline_coverage"],
+                    competitor_guideline_coverage=competitor_bundle,
+                    disease_filter=disease_filter,
+                    market_accounts=selected_accounts,
+                    stakeholders=selected_stakeholders,
+                )
+                strategy_payload = strategy_result["response_json"]
+                strategy_record = StrategyReport.objects.create(
+                    your_panel=your_panel,
+                    competitor_panel=target_competitor,
+                    market_account=primary_account,
+                    title=strategy_payload.get("title", "").strip(),
+                    disease_focus=disease_filter,
+                    status="completed",
+                    executive_summary=strategy_payload.get("executive_summary", ""),
+                    swot_json=strategy_payload.get("swot", {}),
+                    market_gap_json=strategy_payload.get("market_gap", {}),
+                    guideline_advantages_json=strategy_payload.get("guideline_coverage_and_advantages", {}),
+                    campaigns_json=strategy_payload.get("marketing_campaigns", []),
+                    sales_pitch_text=strategy_payload.get("sales_pitch", ""),
+                    llm_provider=strategy_result["provider"],
+                    llm_model=strategy_result["model"],
+                    report_json={
+                        "disease_filter": disease_filter,
+                        "market_account": primary_account.name if primary_account else "",
+                        "market_accounts": [
+                            {
+                                "id": account.pk,
+                                "name": account.name,
+                                "city": account.city,
+                                "institution_type": account.get_institution_type_display(),
+                            }
+                            for account in selected_accounts
+                        ],
+                        "recommended_next_steps": strategy_payload.get("recommended_next_steps", []),
+                        "raw_strategy_payload": strategy_payload,
+                        "compare_query": {
+                            "your_panel": your_panel.pk,
+                            "competitors": competitor_ids,
+                        },
+                    },
+                )
+                LLMGenerationLog.objects.create(
+                    strategy_report=strategy_record,
+                    provider=strategy_result["provider"],
+                    model_name=strategy_result["model"],
+                    prompt_text=strategy_result["prompt_text"],
+                    response_text=strategy_result["response_text"],
+                    response_json=strategy_payload,
+                    prompt_tokens=strategy_result["prompt_tokens"],
+                    response_tokens=strategy_result["response_tokens"],
+                    total_tokens=strategy_result["total_tokens"],
+                    estimated_cost_usd=strategy_result["estimated_cost_usd"],
+                    status="completed",
+                )
+                messages.success(request, f"Strategy draft generated for {target_competitor.name}.")
+                strategy_outputs.append(
+                    {
+                        "competitor_panel": target_competitor,
+                        "strategy_text": strategy_payload.get("executive_summary", ""),
+                        "report_id": strategy_record.pk,
+                        "title": strategy_record.title,
+                    }
+                )
+            except Exception as exc:
+                messages.error(request, f"Strategy generation failed for {target_competitor.name}: {exc}")
+
+    existing_strategy_reports = list(
+        StrategyReport.objects.filter(
+            your_panel=your_panel,
+            competitor_panel__in=competitor_panels,
+        )
+        .select_related("competitor_panel")
+        .order_by("-created_at")[:8]
+    )
+
+    context = {
+        "page_title": "Panel Comparison Results",
+        "your_panel": your_panel,
+        "competitor_panels": competitor_panels,
+        "grouped_competitors": grouped_competitors,
+        "comparison_bundle": comparison_bundle,
+        "market_accounts": market_accounts,
+        "filters": {
+            "disease": disease_filter,
+            "your_panel": your_panel.pk,
+            "competitors": _serialize_competitor_ids(competitor_panels),
+        },
+        "disease_choices": disease_choices,
+        "strategy_outputs": strategy_outputs,
+        "existing_strategy_reports": existing_strategy_reports,
+        "selected_market_account_ids": selected_market_account_ids,
+    }
+    return render(request, "medstratix/panel_compare_result.html", context)
+
+
+@login_required
+def strategy_workspace(request):
+    search_query = request.GET.get("q", "").strip()
+    disease_filter = request.GET.get("disease", "").strip()
+
+    reports = StrategyReport.objects.select_related("your_panel", "competitor_panel").prefetch_related("llm_logs")
+    if search_query:
+        reports = reports.filter(
+            Q(title__icontains=search_query)
+            | Q(your_panel__name__icontains=search_query)
+            | Q(competitor_panel__name__icontains=search_query)
+            | Q(disease_focus__icontains=search_query)
+        )
+    if disease_filter:
+        reports = reports.filter(disease_focus__icontains=disease_filter)
+
+    reports = reports.order_by("-created_at")
+    paginator = Paginator(reports, 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    context = {
+        "page_title": "Strategy Workspace",
+        "reports": list(page_obj.object_list),
+        "page_obj": page_obj,
+        "filters": {
+            "q": search_query,
+            "disease": disease_filter,
+            "query_suffix": _query_without_page(request),
+        },
+        "active_filter_chips": _active_filter_chips(
+            {"q": search_query, "disease": disease_filter},
+            reverse_lazy("medstratix:strategy_workspace"),
+        ),
+    }
+    return render(request, "medstratix/strategy_workspace.html", context)
+
+
+@login_required
+def market_workspace(request):
+    account_form = MarketAccountForm(prefix="account")
+    stakeholder_form = MarketStakeholderForm(prefix="stakeholder")
+
+    if request.method == "POST":
+        action = request.POST.get("market_action", "").strip()
+        if action == "account":
+            account_form = MarketAccountForm(request.POST, prefix="account")
+            if account_form.is_valid():
+                account = account_form.save()
+                messages.success(request, f"Market account saved: {account.name}")
+                return redirect("medstratix:market_workspace")
+        elif action == "stakeholder":
+            stakeholder_form = MarketStakeholderForm(request.POST, prefix="stakeholder")
+            if stakeholder_form.is_valid():
+                stakeholder = stakeholder_form.save()
+                messages.success(request, f"Stakeholder saved: {stakeholder.name}")
+                return redirect("medstratix:market_workspace")
+
+    accounts = MarketAccount.objects.prefetch_related("stakeholders").order_by("name")
+    context = {
+        "page_title": "Market Intelligence",
+        "account_form": account_form,
+        "stakeholder_form": stakeholder_form,
+        "accounts": [_market_snapshot(account) for account in accounts],
+    }
+    return render(request, "medstratix/market_workspace.html", context)
+
+
+@login_required
+def strategy_detail(request, pk):
+    report = get_object_or_404(
+        StrategyReport.objects.select_related("your_panel", "competitor_panel", "guideline_document", "market_account").prefetch_related("llm_logs"),
+        pk=pk,
+    )
+    context = {
+        "page_title": report.title or f"Strategy {report.pk}",
+        "report": report,
+        "latest_log": report.llm_logs.order_by("-created_at").first(),
+    }
+    return render(request, "medstratix/strategy_detail.html", context)
 
 
 @login_required

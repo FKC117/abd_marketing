@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Market Intelligence{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Market Intelligence</span>
+            <h1 class="workspace-title">Capture institution reality, stakeholder behavior, and compliant market pressure signals.</h1>
+            <p class="lead">
+                This layer gives the strategy engine field reality: institutions, doctor habits, evidence sensitivity,
+                decision style, and market distortion pressure, framed for ethical competitive response.
+            </p>
+        </div>
+    </section>
+
+    <section class="panel-upload-grid">
+        <article class="workspace-panel workspace-panel--form">
+            <div class="section-heading">
+                <span class="eyebrow">Institution / Account</span>
+                <h2>Store institution-level market context.</h2>
+            </div>
+            <form method="post" class="styled-form">
+                {% csrf_token %}
+                <input type="hidden" name="market_action" value="account">
+                <div class="panel-form-grid">
+                    {% for field in account_form %}
+                        <div class="form-row {% if field.name == 'compliance_red_flags' or field.name == 'ethical_growth_goal' or field.name == 'notes' %}form-row--full{% endif %}">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% for error in field.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+                <button class="button button-primary" type="submit">Save Account</button>
+            </form>
+        </article>
+
+        <article class="workspace-panel workspace-panel--form">
+            <div class="section-heading">
+                <span class="eyebrow">Stakeholder</span>
+                <h2>Store doctor or decision-maker behavior and influence.</h2>
+            </div>
+            <form method="post" class="styled-form">
+                {% csrf_token %}
+                <input type="hidden" name="market_action" value="stakeholder">
+                <div class="panel-form-grid">
+                    {% for field in stakeholder_form %}
+                        <div class="form-row {% if field.name == 'service_expectation' or field.name == 'behavioral_notes' %}form-row--full{% endif %}">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% for error in field.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+                <button class="button button-primary" type="submit">Save Stakeholder</button>
+            </form>
+        </article>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Saved Market Accounts</span>
+                <h2>{{ accounts|length }} account{{ accounts|length|pluralize }} in the strategy context library.</h2>
+            </div>
+        </div>
+        <div class="workspace-list">
+            {% for item in accounts %}
+                <article class="workspace-card">
+                    <div class="workspace-card__main">
+                        <div class="workspace-card__header">
+                            <div>
+                                <span class="workspace-card__type">{{ item.account.get_institution_type_display }}</span>
+                                <h3>{{ item.account.name }}</h3>
+                            </div>
+                            <div class="workspace-card__badges">
+                                <span class="status-pill">{{ item.account.city|default:"Location N/A" }}</span>
+                            </div>
+                        </div>
+                        <div class="workspace-card__stats">
+                            <span>Decision: {{ item.account.get_decision_style_display }}</span>
+                            <span>Disease: {{ item.account.disease_focus|default:"N/A" }}</span>
+                            <span>Market pressure: {{ item.account.get_market_corruption_pressure_display }}</span>
+                            <span>Stakeholders: {{ item.stakeholder_count }}</span>
+                        </div>
+                        <div class="workspace-card__profile">
+                            <strong>Ethical Growth Goal</strong>
+                            <p>{{ item.account.ethical_growth_goal|default:"No growth goal recorded yet." }}</p>
+                        </div>
+                        <div class="workspace-card__variants">
+                            <p class="workspace-card__variants-label">Stakeholders</p>
+                            <div class="gene-chip-row">
+                                {% for stakeholder in item.stakeholders %}
+                                    <span class="gene-chip gene-chip--total">{{ stakeholder.name }} | {{ stakeholder.get_role_display }}</span>
+                                {% empty %}
+                                    <span class="table-subtle">No stakeholder entries yet.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h3>No market accounts yet.</h3>
+                    <p>Once you add institutions and stakeholders here, they can be selected on the comparison page and fed into strategy generation.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

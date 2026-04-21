@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Workspace{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Panel Workspace</span>
+            <h1 class="workspace-title">Load your own panels and competitor panels with pricing, TAT, and gene content.</h1>
+            <p class="lead">
+                This is the intake layer for MedStratix panel intelligence. Keep your internal panels and competitor
+                panels separate, but manage them from one operational screen.
+            </p>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics">
+        <article class="metric-card">
+            <span>Total Panels</span>
+            <strong>{{ summary.total }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Your Panels</span>
+            <strong>{{ summary.your_count }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Competitors</span>
+            <strong>{{ summary.competitor_count }}</strong>
+        </article>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library workspace-panel--compact">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Comparison Setup</span>
+                <h2>Select one of your panels against multiple competitor panels.</h2>
+            </div>
+            <a class="button button-primary workspace-button" href="{% url 'medstratix:panel_compare_setup' %}">Open Comparison Selector</a>
+        </div>
+        <p class="panel-form-note">
+            This setup supports one of your panels versus multiple competitor panels, including multiple panels from the same competitor.
+        </p>
+    </section>
+
+    <section class="panel-upload-grid">
+        <article class="workspace-panel workspace-panel--form">
+            <div class="section-heading">
+                <span class="eyebrow">Your Panels</span>
+                <h2>Upload your own commercial or internal panels.</h2>
+            </div>
+            <p class="panel-form-note">Prices may be entered in `BDT`, `USD`, or `EUR`. All saved prices are normalized into BDT.</p>
+            <form method="post" enctype="multipart/form-data" class="styled-form">
+                {% csrf_token %}
+                <input type="hidden" name="upload_kind" value="yours">
+                <div class="panel-form-grid">
+                    {% for field in your_form %}
+                        {% if field.is_hidden %}
+                            {{ field }}
+                        {% else %}
+                            <div class="form-row {% if field.name == 'gene_text' or field.name == 'gene_file' %}form-row--full{% endif %}">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% for error in field.errors %}
+                                    <p class="form-error">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% for error in your_form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
+                <button class="button button-primary" type="submit">Save Your Panel</button>
+            </form>
+        </article>
+
+        <article class="workspace-panel workspace-panel--form">
+            <div class="section-heading">
+                <span class="eyebrow">Competitors</span>
+                <h2>Upload competitor panels with pricing and turnaround details.</h2>
+            </div>
+            <p class="panel-form-note">Prices may be entered in `BDT`, `USD`, or `EUR`. All saved prices are normalized into BDT.</p>
+            <form method="post" enctype="multipart/form-data" class="styled-form">
+                {% csrf_token %}
+                <input type="hidden" name="upload_kind" value="competitor">
+                <div class="panel-form-grid">
+                    {% for field in competitor_form %}
+                        {% if field.is_hidden %}
+                            {{ field }}
+                        {% else %}
+                            <div class="form-row {% if field.name == 'gene_text' or field.name == 'gene_file' %}form-row--full{% endif %}">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% for error in field.errors %}
+                                    <p class="form-error">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% for error in competitor_form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
+                <button class="button button-primary" type="submit">Save Competitor Panel</button>
+            </form>
+        </article>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Panel Library</span>
+                <h2>{{ page_obj.paginator.count }} stored panels, separated by ownership and searchable.</h2>
+            </div>
+            <p class="workspace-page-meta">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+        </div>
+
+        <form method="get" class="filter-bar">
+            <div class="filter-bar__group filter-bar__group--wide">
+                <label for="panel-q">Search</label>
+                <input id="panel-q" class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="Search company, panel, or gene">
+            </div>
+            <div class="filter-bar__group">
+                <label for="panel-owner">Owner</label>
+                <select id="panel-owner" class="form-control" name="owner">
+                    <option value="">All</option>
+                    <option value="yours" {% if filters.owner == "yours" %}selected{% endif %}>Your Panels</option>
+                    <option value="competitor" {% if filters.owner == "competitor" %}selected{% endif %}>Competitors</option>
+                </select>
+            </div>
+            <div class="filter-bar__group">
+                <label for="panel-sort">Sort</label>
+                <select id="panel-sort" class="form-control" name="sort">
+                    <option value="updated" {% if filters.sort == "updated" %}selected{% endif %}>Recently updated</option>
+                    <option value="name" {% if filters.sort == "name" %}selected{% endif %}>Panel name</option>
+                    <option value="company" {% if filters.sort == "company" %}selected{% endif %}>Company</option>
+                    <option value="price" {% if filters.sort == "price" %}selected{% endif %}>Price</option>
+                </select>
+            </div>
+            <div class="filter-bar__actions">
+                <button class="button button-primary workspace-button" type="submit">Apply</button>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_workspace' %}">Reset</a>
+            </div>
+        </form>
+
+        {% if active_filter_chips %}
+            <div class="active-filters">
+                {% for chip in active_filter_chips %}
+                    <a class="filter-chip" href="{{ chip.remove_url }}">
+                        <span>{{ chip.label }}: {{ chip.value }}</span>
+                        <strong>Clear</strong>
+                    </a>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="workspace-list">
+            {% for item in panels %}
+                {% with panel=item.panel %}
+                    <article class="workspace-card">
+                        <div class="workspace-card__main">
+                            <div class="workspace-card__header">
+                                <div>
+                                    <span class="workspace-card__type">{{ panel.company.name }}</span>
+                                    <h3>{{ panel.name }}</h3>
+                                </div>
+                                <div class="workspace-card__badges">
+                                    <span class="status-pill">
+                                        {% if panel.company.type == "yours" %}Your Panel{% else %}Competitor{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="workspace-card__stats">
+                                <span>{{ item.gene_count }} genes</span>
+                                <span>Sample: {{ item.sample_type_label }}</span>
+                                <span>Price: {% if panel.price %}{{ panel.price }} BDT{% else %}N/A{% endif %}</span>
+                                <span>TAT: {{ panel.tat|default:"N/A" }}</span>
+                            </div>
+
+                            <div class="workspace-card__variants">
+                                <p class="workspace-card__variants-label">Capabilities</p>
+                                <div class="gene-chip-row">
+                                    {% for capability in item.capabilities %}
+                                        <span class="gene-chip gene-chip--total">{{ capability }}</span>
+                                    {% empty %}
+                                        <span class="table-subtle">No assay capabilities flagged yet.</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <div class="workspace-card__variants">
+                                <p class="workspace-card__variants-label">Gene preview</p>
+                                <div class="gene-chip-row">
+                                    {% for gene in item.gene_preview %}
+                                        <span class="gene-chip">{{ gene }}</span>
+                                    {% empty %}
+                                        <span class="table-subtle">No genes stored yet.</span>
+                                    {% endfor %}
+                                    {% if item.gene_overflow %}
+                                        <span class="gene-chip gene-chip--variant-muted">+{{ item.gene_overflow }} more</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="workspace-card__actions">
+                            <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_edit' panel.pk %}">Edit Panel</a>
+                            <a class="button button-primary workspace-button" href="{% url 'medstratix:panel_compare_setup' %}">Use In Comparison</a>
+                        </div>
+                    </article>
+                {% endwith %}
+            {% empty %}
+                <div class="empty-state">
+                    <h3>No panels match these filters.</h3>
+                    <p>Try a broader search term or reset the owner filter.</p>
+                    <a class="button button-secondary" href="{% url 'medstratix:panel_workspace' %}">Clear Filters</a>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="pager">
+            {% if page_obj.has_previous %}
+                <a class="pager__link" href="?page={{ page_obj.previous_page_number }}{{ filters.query_suffix }}">Previous</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Previous</span>
+            {% endif %}
+
+            <span class="pager__status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a class="pager__link" href="?page={{ page_obj.next_page_number }}{{ filters.query_suffix }}">Next</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Next</span>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}

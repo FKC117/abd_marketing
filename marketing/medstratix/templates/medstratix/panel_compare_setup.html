@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Comparison Setup{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Comparison Setup</span>
+            <h1 class="workspace-title">Choose one of your panels and stack it against multiple competitor panels.</h1>
+            <p class="lead">
+                This screen now only handles selection. Once you submit, we take you to a full-width result page with
+                disease filtering, NCCN coverage analysis, assay-fit scoring, and strategy generation.
+            </p>
+        </div>
+    </section>
+
+    <section class="workspace-grid workspace-grid--stacked">
+        <article class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Selections</span>
+                <h2>Build the comparison set before we run the full analysis page.</h2>
+            </div>
+            <form method="post" class="styled-form">
+                {% csrf_token %}
+                <div class="compare-form-grid">
+                    <div class="form-row form-row--full">
+                        <label for="{{ form.your_panel.id_for_label }}">{{ form.your_panel.label }}</label>
+                        {{ form.your_panel }}
+                        {% for error in form.your_panel.errors %}
+                            <p class="form-error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    <div class="form-row form-row--full">
+                        <label>{{ form.competitor_panels.label }}</label>
+                        <div class="checkbox-grid">
+                            {{ form.competitor_panels }}
+                        </div>
+                        {% for error in form.competitor_panels.errors %}
+                            <p class="form-error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% for error in form.non_field_errors %}
+                    <p class="form-error">{{ error }}</p>
+                {% endfor %}
+                <div class="panel-editor__actions">
+                    <button class="button button-primary" type="submit">Open Full Comparison</button>
+                    <a class="button button-secondary" href="{% url 'medstratix:panel_workspace' %}">Back To Panels</a>
+                </div>
+            </form>
+        </article>
+    </section>
+</main>
+{% endblock %}
