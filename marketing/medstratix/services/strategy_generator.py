@@ -1,9 +1,13 @@
 import json
+import logging
 import os
 import time
 from decimal import Decimal, ROUND_HALF_UP
 
 from google import genai
+
+
+logger = logging.getLogger("medstratix.strategy")
 
 
 def _response_text(response) -> str:
@@ -18,6 +22,44 @@ def _response_text(response) -> str:
         if assembled.strip():
             return assembled.strip()
     return ""
+
+
+def _extract_json_payload(text: str) -> dict:
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Gemini returned an empty response.")
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    if "```" in raw:
+        blocks = raw.split("```")
+        for block in blocks:
+            candidate = block.strip()
+            if candidate.lower().startswith("json"):
+                candidate = candidate[4:].strip()
+            if not candidate:
+                continue
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+
+    start_positions = [pos for pos in (raw.find("{"), raw.find("[")) if pos != -1]
+    if start_positions:
+        start = min(start_positions)
+        for end in range(len(raw), start, -1):
+            candidate = raw[start:end].strip()
+            if not candidate:
+                continue
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+
+    raise ValueError("Gemini did not return valid JSON.")
 
 
 def _usage_metadata(response) -> dict:
@@ -167,11 +209,19 @@ def _call_gemini_with_retry(*, client, model_name: str, prompt: str):
     last_error = None
     for attempt in range(3):
         try:
+            logger.info("Calling Gemini model=%s attempt=%s prompt_chars=%s", model_name, attempt + 1, len(prompt))
             return client.models.generate_content(model=model_name, contents=prompt)
         except Exception as exc:
             last_error = exc
             error_text = str(exc).upper()
             transient = any(token in error_text for token in ("503", "UNAVAILABLE", "TIMEOUT", "TIMED OUT", "DEADLINE"))
+            logger.warning(
+                "Gemini call failed model=%s attempt=%s transient=%s error=%s",
+                model_name,
+                attempt + 1,
+                transient,
+                exc,
+            )
             if not transient or attempt == 2:
                 raise
             time.sleep(2 * (attempt + 1))
@@ -191,6 +241,7 @@ def generate_structured_strategy(
 ) -> dict:
     api_key = os.getenv("GOOGLE_API_KEY", "").strip()
     if not api_key:
+        logger.error("Strategy generation blocked because GOOGLE_API_KEY is missing.")
         raise ValueError("GOOGLE_API_KEY is not configured in the environment.")
 
     model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
@@ -203,6 +254,8 @@ def generate_structured_strategy(
 You are helping build a strategic oncology panel intelligence report for MedStratix.
 
 Return valid JSON only.
+Do not wrap the JSON in markdown fences.
+Do not include commentary before or after the JSON.
 
 Required top-level keys:
 - title
@@ -264,17 +317,38 @@ Competitor NCCN coverage:
 {market_context}
 """.strip()
 
+    logger.info(
+        "Preparing strategy generation your_panel=%s competitor_panel=%s disease_filter=%s market_accounts=%s stakeholders=%s",
+        your_panel.name,
+        competitor_panel.name,
+        disease_filter or "ALL",
+        len(market_accounts or []),
+        len(stakeholders or []),
+    )
     client = genai.Client(api_key=api_key)
     response = _call_gemini_with_retry(client=client, model_name=model_name, prompt=prompt)
     text = _response_text(response)
-    if not text:
-        raise ValueError("Gemini returned an empty response.")
     try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
+        payload = _extract_json_payload(text)
+    except ValueError as exc:
+        logger.exception(
+            "Gemini returned non-JSON output your_panel=%s competitor_panel=%s model=%s",
+            your_panel.name,
+            competitor_panel.name,
+            model_name,
+        )
         raise ValueError(f"Gemini did not return valid JSON: {exc}") from exc
 
     usage = _usage_metadata(response)
+    logger.info(
+        "Strategy generation succeeded your_panel=%s competitor_panel=%s model=%s prompt_tokens=%s response_tokens=%s total_tokens=%s",
+        your_panel.name,
+        competitor_panel.name,
+        model_name,
+        usage["prompt_tokens"],
+        usage["response_tokens"],
+        usage["total_tokens"],
+    )
     return {
         "provider": "google_genai",
         "model": model_name,

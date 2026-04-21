@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 
 from django.contrib import messages
 from django.contrib.auth import login
@@ -39,6 +40,9 @@ from .services.nccn_profiles import get_parser_profile
 from .services.panel_comparison import build_comparison_bundle
 from .services.panel_upload import save_uploaded_panel
 from .services.strategy_generator import generate_structured_strategy
+
+
+logger = logging.getLogger("medstratix.views")
 
 
 def _guideline_depth_label(guideline: GuidelineDocument) -> str:
@@ -764,6 +768,13 @@ def panel_compare_result(request):
         for account in selected_accounts:
             selected_stakeholders.extend(list(account.stakeholders.all()))
         if target_competitor:
+            logger.info(
+                "Strategy generation requested your_panel=%s competitor_panel=%s disease_filter=%s market_accounts=%s",
+                your_panel.name,
+                target_competitor.name,
+                disease_filter or "ALL",
+                [account.name for account in selected_accounts],
+            )
             competitor_bundle = next(
                 (payload for payload in comparison_bundle["competitor_guideline_coverages"] if payload["panel"].pk == target_competitor.pk),
                 None,
@@ -832,6 +843,12 @@ def panel_compare_result(request):
                     estimated_cost_usd=strategy_result["estimated_cost_usd"],
                     status="completed",
                 )
+                logger.info(
+                    "Strategy report saved report_id=%s your_panel=%s competitor_panel=%s",
+                    strategy_record.pk,
+                    your_panel.name,
+                    target_competitor.name,
+                )
                 messages.success(request, f"Strategy draft generated for {target_competitor.name}.")
                 strategy_outputs.append(
                     {
@@ -842,6 +859,12 @@ def panel_compare_result(request):
                     }
                 )
             except Exception as exc:
+                logger.exception(
+                    "Strategy generation failed your_panel=%s competitor_panel=%s disease_filter=%s",
+                    your_panel.name,
+                    target_competitor.name,
+                    disease_filter or "ALL",
+                )
                 messages.error(request, f"Strategy generation failed for {target_competitor.name}: {exc}")
 
     existing_strategy_reports = list(

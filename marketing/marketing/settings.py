@@ -118,6 +118,8 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
 
 LOGIN_URL = "medstratix:signin"
 LOGIN_REDIRECT_URL = "medstratix:guideline_workspace"
@@ -127,6 +129,58 @@ PANEL_PRICE_FX = {
     "BDT": 1,
     "USD": float(os.getenv("PANEL_USD_TO_BDT", "122")),
     "EUR": float(os.getenv("PANEL_EUR_TO_BDT", "133")),
+}
+
+LOG_LEVEL = os.getenv("DJANGO_LOG_LEVEL", "INFO").upper()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        },
+        "verbose": {
+            "format": "%(asctime)s | %(levelname)s | %(name)s | %(module)s:%(lineno)d | %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": LOG_LEVEL,
+            "formatter": "standard",
+        },
+        "app_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": LOG_LEVEL,
+            "formatter": "verbose",
+            "filename": LOGS_DIR / "medstratix.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 5,
+            "encoding": "utf-8",
+        },
+        "error_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "ERROR",
+            "formatter": "verbose",
+            "filename": LOGS_DIR / "errors.log",
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 5,
+            "encoding": "utf-8",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "error_file"],
+            "level": LOG_LEVEL,
+            "propagate": True,
+        },
+        "medstratix": {
+            "handlers": ["console", "app_file", "error_file"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
 }
 
 # Default primary key field type
