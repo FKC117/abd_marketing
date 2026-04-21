@@ -225,3 +225,55 @@ class MarketStakeholderForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         apply_widget_style(self.fields)
+
+
+class MarketingPlanBuilderForm(forms.Form):
+    OUTPUT_STYLE_CHOICES = (
+        ("brief_plan", "Brief Marketing Plan"),
+        ("detailed_plan", "Detailed Marketing Plan"),
+        ("launch_plan", "90-Day Launch Plan"),
+        ("growth_plan", "Growth Plan"),
+        ("account_plan", "Account Plan"),
+    )
+
+    title = forms.CharField(max_length=255)
+    objective = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    geography = forms.CharField(required=False, max_length=255)
+    disease_focus = forms.CharField(required=False, max_length=255)
+    output_style = forms.ChoiceField(choices=OUTPUT_STYLE_CHOICES, initial="brief_plan")
+    include_product_context = forms.BooleanField(required=False, initial=False)
+    strategy_model = forms.ChoiceField(choices=(), required=False)
+    strategist_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 6}))
+    market_accounts = forms.ModelMultipleChoiceField(
+        queryset=MarketAccount.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    your_panels = forms.ModelMultipleChoiceField(
+        queryset=Panel.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    competitor_panels = forms.ModelMultipleChoiceField(
+        queryset=Panel.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, model_choices=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["market_accounts"].queryset = MarketAccount.objects.order_by("name")
+        self.fields["your_panels"].queryset = Panel.objects.filter(company__type=CompanyType.YOURS).select_related("company")
+        self.fields["competitor_panels"].queryset = Panel.objects.filter(company__type=CompanyType.COMPETITOR).select_related("company")
+        self.fields["strategy_model"].choices = model_choices or ()
+        apply_widget_style(
+            {
+                "title": self.fields["title"],
+                "objective": self.fields["objective"],
+                "geography": self.fields["geography"],
+                "disease_focus": self.fields["disease_focus"],
+                "output_style": self.fields["output_style"],
+                "strategy_model": self.fields["strategy_model"],
+                "strategist_note": self.fields["strategist_note"],
+            }
+        )

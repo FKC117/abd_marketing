@@ -12,6 +12,7 @@ from .models import (
     GuidelineTherapyRule,
     LLMGenerationLog,
     MarketAccount,
+    MarketingPlan,
     MarketStakeholder,
     MolecularProfile,
     Panel,
@@ -178,10 +179,18 @@ class StrategyReportAdmin(admin.ModelAdmin):
 
 @admin.register(LLMGenerationLog)
 class LLMGenerationLogAdmin(admin.ModelAdmin):
-    list_display = ["strategy_report", "provider", "model_name", "status", "total_tokens", "estimated_cost_usd", "created_at"]
+    list_display = ["strategy_report", "marketing_plan", "provider", "model_name", "status", "total_tokens", "estimated_cost_usd", "created_at"]
     list_filter = ["provider", "model_name", "status"]
     search_fields = ["strategy_report__title", "strategy_report__your_panel__name", "strategy_report__competitor_panel__name"]
     autocomplete_fields = ["strategy_report"]
+
+
+@admin.register(MarketingPlan)
+class MarketingPlanAdmin(admin.ModelAdmin):
+    list_display = ["title", "output_style", "include_product_context", "llm_model", "created_by", "created_at"]
+    list_filter = ["output_style", "include_product_context", "llm_model"]
+    search_fields = ["title", "objective", "geography", "disease_focus"]
+    autocomplete_fields = ["created_by", "market_account", "comparison_run"]
 
 
 @admin.register(PanelGuidelineMatch)

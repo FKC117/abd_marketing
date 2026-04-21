@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 from .forms import (
     GuidelineUploadForm,
     MarketAccountForm,
+    MarketingPlanBuilderForm,
     MarketStakeholderForm,
     PanelComparisonSelectForm,
     PanelUploadForm,
@@ -31,6 +32,7 @@ from .models import (
     GuidelineTherapyRule,
     LLMGenerationLog,
     MarketAccount,
+    MarketingPlan,
     MarketStakeholder,
     Panel,
     SampleType,
@@ -39,9 +41,11 @@ from .models import (
     TestingMethodType,
 )
 from .services.guideline_pipeline import process_guideline_document
+from .services.gemini_models import list_strategy_models
+from .services.marketing_plan_generator import generate_marketing_plan
 from .services.nccn_profiles import get_parser_profile
 from .services.panel_comparison import build_comparison_bundle, build_guideline_coverage, build_panel_set_profile, compare_panel_profiles
-from .services.strategy_exporter import build_strategy_docx
+from .services.strategy_exporter import build_comparison_run_docx, build_strategy_docx
 from .services.panel_upload import save_uploaded_panel
 from .services.strategy_generator import generate_structured_strategy
 
@@ -358,8 +362,28 @@ def _selected_market_accounts(market_accounts: list[MarketAccount], selected_ids
     return [account for account in market_accounts if str(account.pk) in selected_id_set]
 
 
+def _panel_set_summary(panels: list[Panel]) -> dict:
+    profile = build_panel_set_profile(panels) if panels else None
+    if not profile:
+        return {}
+    return {
+        "name": profile["name"],
+        "panel_count": profile["panel_count"],
+        "sample_type": profile["sample_type_label"],
+        "price_bdt": profile["price_label"],
+        "tat": profile["tat_label"],
+        "panel_names": [panel.name for panel in profile["panels"]],
+    }
+
+
 def _strategy_export_filename(report: StrategyReport, fmt: str) -> str:
     base = slugify(report.title or f"strategy-{report.pk}") or f"strategy-{report.pk}"
+    extension = "docx" if fmt == "docx" else fmt
+    return f"{base}.{extension}"
+
+
+def _comparison_run_export_filename(run: ComparisonRun, fmt: str) -> str:
+    base = slugify(run.name or f"comparison-run-{run.pk}") or f"comparison-run-{run.pk}"
     extension = "docx" if fmt == "docx" else fmt
     return f"{base}.{extension}"
 
@@ -971,6 +995,11 @@ def panel_compare_result(request):
     competitor_ids = [panel.pk for panel in competitor_panels]
     comparison_bundle = build_comparison_bundle(your_panels, competitor_panels)
     market_accounts = list(MarketAccount.objects.prefetch_related("stakeholders").order_by("name"))
+    strategy_model_options = list_strategy_models()
+    default_strategy_model = next(
+        (item["code"] for item in strategy_model_options if item.get("recommended")),
+        strategy_model_options[0]["code"] if strategy_model_options else "gemini-2.5-pro",
+    )
     disease_choices = sorted(
         {item["guideline"].cancer_type for item in comparison_bundle["your_guideline_coverage"]["results"] if item["guideline"].cancer_type}
     )
@@ -989,11 +1018,15 @@ def panel_compare_result(request):
     strategy_outputs = []
     selected_market_account_ids = []
     strategist_note = ""
+    selected_strategy_model = default_strategy_model
     if request.method == "POST":
         competitor_panel_id = request.POST.get("competitor_panel_id", "").strip()
         strategy_scope = request.POST.get("strategy_scope", "single").strip() or "single"
         selected_market_account_ids = request.POST.getlist("market_account_ids")
         strategist_note = request.POST.get("strategist_note", "").strip()
+        requested_strategy_model = request.POST.get("strategy_model", "").strip()
+        valid_model_codes = {item["code"] for item in strategy_model_options}
+        selected_strategy_model = requested_strategy_model if requested_strategy_model in valid_model_codes else default_strategy_model
         target_competitor = next((panel for panel in competitor_panels if str(panel.pk) == competitor_panel_id), None)
         selected_accounts = _selected_market_accounts(market_accounts, selected_market_account_ids)
         primary_account = selected_accounts[0] if selected_accounts else None
@@ -1037,6 +1070,7 @@ def panel_compare_result(request):
                     market_accounts=selected_accounts,
                     stakeholders=selected_stakeholders,
                     strategist_note=strategist_note,
+                    model_name_override=selected_strategy_model,
                 )
                 strategy_payload = strategy_result["response_json"]
                 strategy_record = StrategyReport.objects.create(
@@ -1092,6 +1126,7 @@ def panel_compare_result(request):
                             for panel in competitor_panels
                         ],
                         "strategist_note": strategist_note,
+                        "requested_strategy_model": selected_strategy_model,
                         "strategy_scope": strategy_scope,
                     },
                 )
@@ -1161,6 +1196,8 @@ def panel_compare_result(request):
         "existing_strategy_reports": existing_strategy_reports,
         "selected_market_account_ids": selected_market_account_ids,
         "strategist_note": strategist_note,
+        "strategy_model_options": strategy_model_options,
+        "selected_strategy_model": selected_strategy_model,
     }
     return render(request, "medstratix/panel_compare_result.html", context)
 
@@ -1200,6 +1237,243 @@ def strategy_workspace(request):
         ),
     }
     return render(request, "medstratix/strategy_workspace.html", context)
+
+
+@login_required
+def comparison_run_workspace(request):
+    runs = ComparisonRun.objects.prefetch_related("your_panels__company", "competitor_panels__company", "marketing_plans").select_related("created_by")
+    paginator = Paginator(runs, 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    context = {
+        "page_title": "Comparison Runs",
+        "runs": list(page_obj.object_list),
+        "page_obj": page_obj,
+    }
+    return render(request, "medstratix/comparison_run_workspace.html", context)
+
+
+@login_required
+def comparison_run_detail(request, pk):
+    run = get_object_or_404(
+        ComparisonRun.objects.prefetch_related("your_panels__company", "competitor_panels__company", "marketing_plans"),
+        pk=pk,
+    )
+    context = {
+        "page_title": run.name or f"Comparison Run {run.pk}",
+        "run": run,
+    }
+    return render(request, "medstratix/comparison_run_detail.html", context)
+
+
+@login_required
+def comparison_run_export(request, pk, fmt):
+    run = get_object_or_404(
+        ComparisonRun.objects.select_related("created_by").prefetch_related("your_panels__company", "competitor_panels__company", "marketing_plans"),
+        pk=pk,
+    )
+    export_format = (fmt or "").lower().strip()
+    filename = _comparison_run_export_filename(run, export_format)
+
+    if export_format == "docx":
+        document_buffer = build_comparison_run_docx(run)
+        response = HttpResponse(
+            document_buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "json":
+        payload = {
+            "id": run.pk,
+            "name": run.name,
+            "created_by": getattr(run.created_by, "username", ""),
+            "disease_filter": run.disease_filter,
+            "your_panels": [
+                {
+                    "id": panel.pk,
+                    "company": panel.company.name,
+                    "name": panel.name,
+                    "sample_type": panel.get_sample_type_display(),
+                    "price_bdt": str(panel.price) if panel.price is not None else "",
+                    "tat": panel.tat,
+                }
+                for panel in run.your_panels.all()
+            ],
+            "competitor_panels": [
+                {
+                    "id": panel.pk,
+                    "company": panel.company.name,
+                    "name": panel.name,
+                    "sample_type": panel.get_sample_type_display(),
+                    "price_bdt": str(panel.price) if panel.price is not None else "",
+                    "tat": panel.tat,
+                }
+                for panel in run.competitor_panels.all()
+            ],
+            "summary_json": run.summary_json,
+            "linked_marketing_plans": [
+                {
+                    "id": plan.pk,
+                    "title": plan.title,
+                    "output_style": plan.output_style,
+                }
+                for plan in run.marketing_plans.all()
+            ],
+            "created_at": run.created_at.isoformat(),
+            "updated_at": run.updated_at.isoformat(),
+        }
+        response = JsonResponse(payload, json_dumps_params={"indent": 2})
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    messages.error(request, "Unsupported comparison-run export format.")
+    return redirect("medstratix:comparison_run_detail", pk=run.pk)
+
+
+@login_required
+def marketing_plan_builder(request):
+    strategy_model_options = list_strategy_models()
+    model_choices = [(item["code"], f"{item['label']}{' (Recommended)' if item.get('recommended') else ''}") for item in strategy_model_options]
+
+    if request.method == "POST":
+        form = MarketingPlanBuilderForm(request.POST, model_choices=model_choices)
+        if form.is_valid():
+            market_accounts = list(form.cleaned_data["market_accounts"])
+            your_panels = list(form.cleaned_data["your_panels"])
+            competitor_panels = list(form.cleaned_data["competitor_panels"])
+            include_product_context = form.cleaned_data["include_product_context"]
+
+            your_summary = _panel_set_summary(your_panels) if include_product_context else {}
+            competitor_summary = _panel_set_summary(competitor_panels) if include_product_context else {}
+            comparison_summary = {}
+            comparison_run = None
+
+            if include_product_context and your_panels and competitor_panels:
+                your_profile = build_panel_set_profile(your_panels)
+                competitor_profile = build_panel_set_profile(competitor_panels)
+                comparison_summary = compare_panel_profiles(your_profile, competitor_profile)
+                comparison_run = ComparisonRun.objects.create(
+                    created_by=request.user,
+                    name=f"Marketing plan run for {form.cleaned_data['title']}",
+                    summary_json={
+                        "source": "marketing_plan_builder",
+                        "your_panels": [panel.pk for panel in your_panels],
+                        "competitor_panels": [panel.pk for panel in competitor_panels],
+                    },
+                )
+                comparison_run.your_panels.set(your_panels)
+                comparison_run.competitor_panels.set(competitor_panels)
+
+            market_accounts_summary = [
+                {
+                    "name": account.name,
+                    "city": account.city,
+                    "institution_type": account.get_institution_type_display(),
+                    "decision_style": account.get_decision_style_display(),
+                    "disease_focus": account.disease_focus,
+                    "price_sensitivity": account.get_price_sensitivity_display(),
+                    "tat_sensitivity": account.get_tat_sensitivity_display(),
+                    "market_corruption_pressure": account.get_market_corruption_pressure_display(),
+                    "referral_distortion_risk": account.get_referral_distortion_risk_display(),
+                }
+                for account in market_accounts
+            ]
+
+            result = generate_marketing_plan(
+                title=form.cleaned_data["title"],
+                objective=form.cleaned_data["objective"],
+                geography=form.cleaned_data["geography"],
+                disease_focus=form.cleaned_data["disease_focus"],
+                output_style=form.cleaned_data["output_style"],
+                include_product_context=include_product_context,
+                strategist_note=form.cleaned_data["strategist_note"],
+                market_accounts_summary=market_accounts_summary,
+                your_panel_summary=your_summary,
+                competitor_panel_summary=competitor_summary,
+                comparison_summary=comparison_summary,
+                model_name_override=form.cleaned_data["strategy_model"],
+            )
+            payload = result["response_json"]
+            plan = MarketingPlan.objects.create(
+                created_by=request.user,
+                title=payload.get("title") or form.cleaned_data["title"],
+                objective=form.cleaned_data["objective"],
+                geography=form.cleaned_data["geography"],
+                disease_focus=form.cleaned_data["disease_focus"],
+                output_style=form.cleaned_data["output_style"],
+                include_product_context=include_product_context,
+                strategist_note=form.cleaned_data["strategist_note"],
+                market_account=market_accounts[0] if market_accounts else None,
+                comparison_run=comparison_run,
+                status="completed",
+                executive_summary=payload.get("executive_summary", ""),
+                llm_provider=result["provider"],
+                llm_model=result["model"],
+                plan_json=payload,
+                plan_text=result["response_text"],
+                report_json={
+                    "market_accounts": market_accounts_summary,
+                    "your_panels": [
+                        {"id": panel.pk, "name": panel.name, "company": panel.company.name, "sample_type": panel.get_sample_type_display()}
+                        for panel in your_panels
+                    ],
+                    "competitor_panels": [
+                        {"id": panel.pk, "name": panel.name, "company": panel.company.name, "sample_type": panel.get_sample_type_display()}
+                        for panel in competitor_panels
+                    ],
+                    "strategist_note": form.cleaned_data["strategist_note"],
+                },
+            )
+            LLMGenerationLog.objects.create(
+                marketing_plan=plan,
+                provider=result["provider"],
+                model_name=result["model"],
+                operation="marketing_plan_generation",
+                status="completed",
+                prompt_text=result["prompt_text"],
+                response_text=result["response_text"],
+                response_json=payload,
+                prompt_tokens=result["prompt_tokens"],
+                response_tokens=result["response_tokens"],
+                total_tokens=result["total_tokens"],
+                estimated_cost_usd=result["estimated_cost_usd"],
+            )
+            messages.success(request, "Marketing plan generated successfully.")
+            return redirect("medstratix:marketing_plan_detail", pk=plan.pk)
+    else:
+        form = MarketingPlanBuilderForm(model_choices=model_choices)
+
+    context = {
+        "page_title": "Marketing Plan Builder",
+        "form": form,
+        "strategy_model_options": strategy_model_options,
+    }
+    return render(request, "medstratix/marketing_plan_builder.html", context)
+
+
+@login_required
+def marketing_plan_workspace(request):
+    plans = MarketingPlan.objects.select_related("created_by", "market_account", "comparison_run").order_by("-created_at")
+    paginator = Paginator(plans, 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    context = {
+        "page_title": "Marketing Plans",
+        "plans": list(page_obj.object_list),
+        "page_obj": page_obj,
+    }
+    return render(request, "medstratix/marketing_plan_workspace.html", context)
+
+
+@login_required
+def marketing_plan_detail(request, pk):
+    plan = get_object_or_404(MarketingPlan.objects.select_related("market_account", "comparison_run").prefetch_related("llm_logs"), pk=pk)
+    context = {
+        "page_title": plan.title,
+        "plan": plan,
+        "latest_log": plan.llm_logs.order_by("-created_at").first(),
+    }
+    return render(request, "medstratix/marketing_plan_detail.html", context)
 
 
 @login_required

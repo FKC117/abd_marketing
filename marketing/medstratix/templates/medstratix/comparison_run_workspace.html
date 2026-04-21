@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Comparison Runs{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Comparison Runs</span>
+            <h1 class="workspace-title">Saved head-to-head comparison runs live here.</h1>
+            <p class="lead">This is the missing layer you were feeling. We were generating comparisons, but we were not surfacing the saved runs as their own workspace.</p>
+        </div>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Run Library</span>
+                <h2>{{ page_obj.paginator.count }} saved run{{ page_obj.paginator.count|pluralize }}.</h2>
+            </div>
+        </div>
+        <div class="workspace-list">
+            {% for run in runs %}
+                <article class="workspace-card">
+                    <div class="workspace-card__main">
+                        <div class="workspace-card__header">
+                            <div>
+                                <span class="workspace-card__type">Created by {{ run.created_by|default:"System" }}</span>
+                                <h3>{{ run.name|default:"Unnamed Comparison Run" }}</h3>
+                            </div>
+                            <div class="workspace-card__badges">
+                                <span class="status-pill">{{ run.your_panels.count }} your / {{ run.competitor_panels.count }} competitor</span>
+                            </div>
+                        </div>
+                        <div class="workspace-card__stats">
+                            <span>{{ run.created_at }}</span>
+                            <span>{{ run.marketing_plans.count }} linked marketing plan{{ run.marketing_plans.count|pluralize }}</span>
+                        </div>
+                    </div>
+                    <div class="workspace-card__actions">
+                        <a class="button button-primary workspace-button" href="{% url 'medstratix:comparison_run_detail' run.pk %}">Open Run</a>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h3>No saved comparison runs yet.</h3>
+                    <p>Create a comparison from the panel compare setup and it will appear here.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

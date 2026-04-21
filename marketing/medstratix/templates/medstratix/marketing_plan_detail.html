@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Marketing Plan Detail{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Marketing Plan Detail</span>
+            <h1 class="workspace-title">{{ plan.title }}</h1>
+            <p class="lead">{{ plan.executive_summary }}</p>
+        </div>
+    </section>
+    <section class="dashboard-metrics compare-metric-grid">
+        <article class="metric-card"><span>Output Style</span><strong>{{ plan.output_style }}</strong></article>
+        <article class="metric-card"><span>Geography</span><strong>{{ plan.geography|default:"Not specified" }}</strong></article>
+        <article class="metric-card"><span>Disease Focus</span><strong>{{ plan.disease_focus|default:"Broad oncology" }}</strong></article>
+        <article class="metric-card"><span>Model</span><strong>{{ plan.llm_model|default:"N/A" }}</strong></article>
+    </section>
+    {% if plan.strategist_note %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading"><span class="eyebrow">Strategist Note</span><h2>Your direct instruction for this plan.</h2></div>
+            <p class="strategy-text">{{ plan.strategist_note|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+    <div class="detail-columns detail-columns--two">
+        <article class="detail-column">
+            <div class="detail-column__header"><h3>Market Landscape</h3><span>3</span></div>
+            <div class="detail-scroll">
+                <div class="mini-list">
+                    <div class="mini-item mini-item--catalog"><strong>Situation</strong><p>{{ plan.plan_json.market_landscape.situation }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Barriers</strong><p>{{ plan.plan_json.market_landscape.barriers }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Opportunities</strong><p>{{ plan.plan_json.market_landscape.opportunities }}</p></div>
+                </div>
+            </div>
+        </article>
+        <article class="detail-column">
+            <div class="detail-column__header"><h3>Positioning</h3><span>3</span></div>
+            <div class="detail-scroll">
+                <div class="mini-list">
+                    <div class="mini-item mini-item--catalog"><strong>Core Message</strong><p>{{ plan.plan_json.positioning.core_message }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Differentiators</strong><p>{{ plan.plan_json.positioning.differentiators }}</p></div>
+                    <div class="mini-item mini-item--catalog"><strong>Proof Points</strong><p>{{ plan.plan_json.positioning.proof_points }}</p></div>
+                </div>
+            </div>
+        </article>
+    </div>
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading"><span class="eyebrow">Campaign Plan</span><h2>Structured campaign ideas for this broader plan.</h2></div>
+        <div class="compare-company-list">
+            {% for campaign in plan.plan_json.campaign_plan %}
+                <div class="compare-company-card">
+                    <strong>{{ campaign.name }}</strong>
+                    <p><strong>Audience:</strong> {{ campaign.audience }}</p>
+                    <p><strong>Objective:</strong> {{ campaign.objective }}</p>
+                    <p><strong>Message:</strong> {{ campaign.message }}</p>
+                    <p><strong>Channels:</strong> {{ campaign.channel_mix }}</p>
+                    <p><strong>Timeline:</strong> {{ campaign.timeline }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

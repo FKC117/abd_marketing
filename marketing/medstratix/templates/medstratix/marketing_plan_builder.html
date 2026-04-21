@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Marketing Plan Builder{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Marketing Plan Builder</span>
+            <h1 class="workspace-title">Build a broader marketing plan with or without product context.</h1>
+            <p class="lead">This is the non-product-specific planning lane. Use it when you want a market plan, launch plan, or growth plan, not only a panel-vs-panel strategy.</p>
+        </div>
+    </section>
+    <section class="workspace-grid workspace-grid--stacked">
+        <article class="workspace-panel detail-panel">
+            <form method="post" class="styled-form">
+                {% csrf_token %}
+                <div class="form-grid form-grid--two">
+                    {% for field in form %}
+                        <div class="form-row {% if field.name == 'objective' or field.name == 'strategist_note' or field.name == 'your_panels' or field.name == 'competitor_panels' or field.name == 'market_accounts' %}form-row--full{% endif %}">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% for error in field.errors %}
+                                <p class="form-error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="panel-editor__actions">
+                    <button class="button button-primary" type="submit">Generate Marketing Plan</button>
+                </div>
+            </form>
+        </article>
+    </section>
+</main>
+{% endblock %}

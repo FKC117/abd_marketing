@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Marketing Plans{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Marketing Plans</span>
+            <h1 class="workspace-title">Saved broad-market plans live here.</h1>
+            <p class="lead">These plans can work with or without product context, which is the part you were asking for.</p>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_builder' %}">New Marketing Plan</a>
+            </div>
+        </div>
+    </section>
+    <section class="workspace-panel workspace-panel--library">
+        <div class="workspace-list">
+            {% for plan in plans %}
+                <article class="workspace-card">
+                    <div class="workspace-card__main">
+                        <div class="workspace-card__header">
+                            <div>
+                                <span class="workspace-card__type">{{ plan.output_style }}</span>
+                                <h3>{{ plan.title }}</h3>
+                            </div>
+                            <div class="workspace-card__badges">
+                                <span class="status-pill">{% if plan.include_product_context %}With Product Context{% else %}Without Product Context{% endif %}</span>
+                            </div>
+                        </div>
+                        <div class="workspace-card__stats">
+                            <span>{{ plan.created_at }}</span>
+                            <span>{{ plan.llm_model|default:"Model N/A" }}</span>
+                            <span>{{ plan.disease_focus|default:"Broad oncology" }}</span>
+                        </div>
+                        <div class="workspace-card__profile">
+                            <strong>Executive Summary</strong>
+                            <p>{{ plan.executive_summary|truncatechars:280 }}</p>
+                        </div>
+                    </div>
+                    <div class="workspace-card__actions">
+                        <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_detail' plan.pk %}">Open Plan</a>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h3>No marketing plans yet.</h3>
+                    <p>Generate one from the Marketing Plan Builder and it will show up here.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

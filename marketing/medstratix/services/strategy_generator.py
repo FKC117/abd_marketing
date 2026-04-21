@@ -261,13 +261,14 @@ def generate_structured_strategy(
     market_accounts=None,
     stakeholders=None,
     strategist_note: str = "",
+    model_name_override: str = "",
 ) -> dict:
     api_key = os.getenv("GOOGLE_API_KEY", "").strip()
     if not api_key:
         logger.error("Strategy generation blocked because GOOGLE_API_KEY is missing.")
         raise ValueError("GOOGLE_API_KEY is not configured in the environment.")
 
-    model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    model_name = (model_name_override or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")).strip() or "gemini-2.5-flash"
     your_panel_context = _panel_context(your_panel)
     competitor_panel_context = _panel_context(competitor_panel)
     compact_comparison_pair = _compact_pair_summary(comparison_pair)

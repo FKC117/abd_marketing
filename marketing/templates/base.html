@@ -16,8 +16,10 @@
                 {% if request.user.is_authenticated %}
                     <a href="{% url 'medstratix:guideline_workspace' %}">Workspace</a>
                     <a href="{% url 'medstratix:panel_workspace' %}">Panels</a>
+                    <a href="{% url 'medstratix:comparison_run_workspace' %}">Compare Runs</a>
                     <a href="{% url 'medstratix:market_workspace' %}">Market</a>
                     <a href="{% url 'medstratix:strategy_workspace' %}">Strategies</a>
+                    <a href="{% url 'medstratix:marketing_plan_workspace' %}">Marketing Plans</a>
                     <a href="{% url 'medstratix:guideline_dashboard' %}">Dashboard</a>
                     <a href="{% url 'medstratix:biomarker_catalog' %}">Biomarkers</a>
                     <a href="{% url 'medstratix:testing_panels' %}">Testing Panels</a>

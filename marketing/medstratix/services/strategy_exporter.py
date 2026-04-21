@@ -196,3 +196,105 @@ def build_strategy_docx(report, latest_log):
     document.save(buffer)
     buffer.seek(0)
     return buffer
+
+
+def build_comparison_run_docx(run):
+    try:
+        from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        from docx.shared import Pt, RGBColor
+    except ModuleNotFoundError as exc:
+        raise ValueError("python-docx is not installed. Please install requirements.txt before exporting Word files.") from exc
+
+    def shade_cell(cell, fill: str):
+        cell_properties = cell._tc.get_or_add_tcPr()
+        shading = OxmlElement("w:shd")
+        shading.set(qn("w:fill"), fill)
+        cell_properties.append(shading)
+
+    document = Document()
+    section = document.sections[0]
+    section.top_margin = Pt(54)
+    section.bottom_margin = Pt(54)
+    section.left_margin = Pt(54)
+    section.right_margin = Pt(54)
+
+    styles = document.styles
+    styles["Normal"].font.name = "Aptos"
+    styles["Normal"].font.size = Pt(10.5)
+    styles["Title"].font.name = "Aptos Display"
+    styles["Title"].font.size = Pt(24)
+    styles["Title"].font.bold = True
+    styles["Heading 1"].font.name = "Aptos Display"
+    styles["Heading 1"].font.size = Pt(15)
+    styles["Heading 2"].font.name = "Aptos Display"
+    styles["Heading 2"].font.size = Pt(12)
+
+    accent = RGBColor(11, 74, 114)
+    muted = RGBColor(96, 96, 96)
+
+    title = document.add_paragraph(style="Title")
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    title_run = title.add_run(run.name or f"Comparison Run {run.pk}")
+    title_run.font.color.rgb = accent
+
+    eyebrow = document.add_paragraph()
+    eyebrow.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    eyebrow_run = eyebrow.add_run("MedStratix Head-To-Head Comparison")
+    eyebrow_run.bold = True
+    eyebrow_run.font.size = Pt(9)
+    eyebrow_run.font.color.rgb = muted
+
+    summary = run.summary_json or {}
+    document.add_paragraph(
+        "This report captures the saved comparison run, including your selected panel set, "
+        "the competitor panel set, and any summary metadata stored with the run."
+    )
+
+    meta_table = document.add_table(rows=2, cols=2)
+    meta_table.style = "Table Grid"
+    meta_pairs = [
+        ("Run Name", run.name or f"Comparison Run {run.pk}"),
+        ("Created By", getattr(run.created_by, "username", "System")),
+        ("Disease Filter", run.disease_filter or "All diseases"),
+        ("Linked Marketing Plans", str(run.marketing_plans.count())),
+    ]
+    for index, (label, value) in enumerate(meta_pairs):
+        cell = meta_table.cell(index // 2, index % 2)
+        shade_cell(cell, "EAF2F8")
+        paragraph = cell.paragraphs[0]
+        label_run = paragraph.add_run(f"{label}\n")
+        label_run.bold = True
+        label_run.font.color.rgb = accent
+        paragraph.add_run(value)
+
+    document.add_heading("Your Panels", level=1)
+    for panel in run.your_panels.all():
+        document.add_paragraph(
+            f"{panel.company.name} | {panel.name} | {panel.get_sample_type_display()} | Price BDT: {panel.price or 'N/A'} | TAT: {panel.tat or 'N/A'}",
+            style="List Bullet",
+        )
+
+    document.add_heading("Competitor Panels", level=1)
+    for panel in run.competitor_panels.all():
+        document.add_paragraph(
+            f"{panel.company.name} | {panel.name} | {panel.get_sample_type_display()} | Price BDT: {panel.price or 'N/A'} | TAT: {panel.tat or 'N/A'}",
+            style="List Bullet",
+        )
+
+    if summary:
+        document.add_heading("Stored Summary", level=1)
+        for key, value in summary.items():
+            document.add_paragraph(f"{key}: {value}")
+
+    if run.marketing_plans.exists():
+        document.add_heading("Linked Marketing Plans", level=1)
+        for plan in run.marketing_plans.all():
+            document.add_paragraph(f"{plan.title} | {plan.output_style} | {plan.created_at}", style="List Bullet")
+
+    buffer = BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer

@@ -85,6 +85,19 @@
             {% csrf_token %}
             <input type="hidden" name="strategy_scope" value="set">
             <div class="form-row">
+                <label for="strategy-model-set">Gemini Model</label>
+                <select id="strategy-model-set" class="form-control" name="strategy_model">
+                    {% for model in strategy_model_options %}
+                        <option value="{{ model.code }}" {% if model.code == selected_strategy_model %}selected{% endif %}>
+                            {{ model.label }}{% if model.recommended %} (Recommended){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">
+                    Pick the model before sending the payload. `Gemini 2.5 Pro` is the strongest option for deep reasoning.
+                </p>
+            </div>
+            <div class="form-row">
                 <label for="market-account-set">Market Account Context</label>
                 <select id="market-account-set" class="form-control" name="market_account_ids" multiple size="5">
                     {% for account in market_accounts %}
@@ -209,6 +222,17 @@
                     <form method="post" class="strategy-action-form">
                         {% csrf_token %}
                         <input type="hidden" name="competitor_panel_id" value="{{ result.competitor_panel.pk }}">
+                        <div class="form-row">
+                            <label for="strategy-model-{{ result.competitor_panel.pk }}">Gemini Model</label>
+                            <select id="strategy-model-{{ result.competitor_panel.pk }}" class="form-control" name="strategy_model">
+                                {% for model in strategy_model_options %}
+                                    <option value="{{ model.code }}" {% if model.code == selected_strategy_model %}selected{% endif %}>
+                                        {{ model.label }}{% if model.recommended %} (Recommended){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <p class="form-help">Choose the model for this strategy run.</p>
+                        </div>
                         <div class="form-row">
                             <label for="market-account-{{ result.competitor_panel.pk }}">Market Account Context</label>
                             <select id="market-account-{{ result.competitor_panel.pk }}" class="form-control" name="market_account_ids" multiple size="5">

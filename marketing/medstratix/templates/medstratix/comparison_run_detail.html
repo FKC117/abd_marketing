@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Comparison Run{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Comparison Run</span>
+            <h1 class="workspace-title">{{ run.name|default:"Unnamed Comparison Run" }}</h1>
+            <p class="lead">This run captures the selected your-panel set and competitor-panel set that drove the comparison.</p>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:panel_compare_result' %}?run={{ run.pk }}&your_panels={% for panel in run.your_panels.all %}{% if not forloop.first %},{% endif %}{{ panel.pk }}{% endfor %}&competitors={% for panel in run.competitor_panels.all %}{% if not forloop.first %},{% endif %}{{ panel.pk }}{% endfor %}">Open Comparison Result</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:comparison_run_export' run.pk 'docx' %}">Export Word</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:comparison_run_export' run.pk 'json' %}">Export JSON</a>
+            </div>
+        </div>
+    </section>
+    <div class="detail-columns detail-columns--two">
+        <article class="detail-column">
+            <div class="detail-column__header"><h3>Your Panels</h3><span>{{ run.your_panels.count }}</span></div>
+            <div class="detail-scroll">
+                <div class="mini-list">
+                    {% for panel in run.your_panels.all %}
+                        <div class="mini-item mini-item--catalog"><strong>{{ panel.company.name }}</strong><span>{{ panel.name }}</span></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+        <article class="detail-column">
+            <div class="detail-column__header"><h3>Competitor Panels</h3><span>{{ run.competitor_panels.count }}</span></div>
+            <div class="detail-scroll">
+                <div class="mini-list">
+                    {% for panel in run.competitor_panels.all %}
+                        <div class="mini-item mini-item--catalog"><strong>{{ panel.company.name }}</strong><span>{{ panel.name }}</span></div>
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+    </div>
+</main>
+{% endblock %}

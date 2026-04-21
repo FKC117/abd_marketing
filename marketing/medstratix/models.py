@@ -257,6 +257,50 @@ class ComparisonRun(TimeStampedModel):
         return self.name or f"Comparison Run {self.pk}"
 
 
+class MarketingPlan(TimeStampedModel):
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="marketing_plans",
+    )
+    title = models.CharField(max_length=255)
+    objective = models.TextField(blank=True)
+    geography = models.CharField(max_length=255, blank=True)
+    disease_focus = models.CharField(max_length=255, blank=True)
+    output_style = models.CharField(max_length=64, default="brief_plan")
+    include_product_context = models.BooleanField(default=False)
+    strategist_note = models.TextField(blank=True)
+    market_account = models.ForeignKey(
+        MarketAccount,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="marketing_plans",
+    )
+    comparison_run = models.ForeignKey(
+        ComparisonRun,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="marketing_plans",
+    )
+    status = models.CharField(max_length=64, default="draft")
+    executive_summary = models.TextField(blank=True)
+    llm_provider = models.CharField(max_length=100, blank=True)
+    llm_model = models.CharField(max_length=100, blank=True)
+    plan_json = models.JSONField(default=dict, blank=True)
+    plan_text = models.TextField(blank=True)
+    report_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
 class GuidelineDocument(TimeStampedModel):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True, blank=True)
@@ -561,10 +605,19 @@ class StrategyReport(TimeStampedModel):
 
 
 class LLMGenerationLog(TimeStampedModel):
+    marketing_plan = models.ForeignKey(
+        MarketingPlan,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="llm_logs",
+    )
     strategy_report = models.ForeignKey(
         StrategyReport,
         on_delete=models.CASCADE,
         related_name="llm_logs",
+        null=True,
+        blank=True,
     )
     provider = models.CharField(max_length=100)
     model_name = models.CharField(max_length=100)
