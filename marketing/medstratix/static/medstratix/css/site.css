@@ -776,6 +776,21 @@ ul.errorlist {
     font-family: "Trebuchet MS", Arial, sans-serif;
 }
 
+.workspace-card__variants {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+}
+
+.workspace-card__variants-label {
+    color: var(--muted);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 .workspace-card__actions {
     display: grid;
     gap: 0.65rem;
@@ -912,6 +927,10 @@ ul.errorlist {
     margin-top: 1.5rem;
 }
 
+.detail-columns--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .detail-column {
     display: flex;
     flex-direction: column;
@@ -949,6 +968,99 @@ ul.errorlist {
     padding: 0 1rem 1rem;
 }
 
+.detail-linked-variants {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+}
+
+.detail-linked-testing,
+.detail-linked-therapies {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+}
+
+.detail-linked-variants__label {
+    color: var(--muted);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.detail-pathway-strip {
+    margin-top: 1.5rem;
+}
+
+.mini-stack {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.mini-stack__item {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 14px;
+    background: rgba(15, 118, 110, 0.06);
+    border: 1px solid rgba(15, 118, 110, 0.08);
+}
+
+.mini-stack__item strong,
+.mini-stack__item span {
+    font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
+.mini-stack__item span {
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.mini-stack__link {
+    color: var(--primary);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.mini-item--expandable {
+    overflow: hidden;
+}
+
+.mini-item__summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+    cursor: pointer;
+    list-style: none;
+}
+
+.mini-item__summary::-webkit-details-marker {
+    display: none;
+}
+
+.mini-item__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(15, 118, 110, 0.08);
+    color: var(--primary-deep);
+    font-family: "Trebuchet MS", Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.mini-item__body {
+    margin-top: 0.95rem;
+}
+
 .panel-catalog {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -969,6 +1081,10 @@ ul.errorlist {
     overflow: auto;
     margin-top: 1rem;
     padding-right: 0.25rem;
+}
+
+.panel-catalog__scroll--tall {
+    max-height: 48rem;
 }
 
 .panel-total-list {
@@ -1018,6 +1134,11 @@ ul.errorlist {
     color: var(--text);
 }
 
+.gene-chip--variant-muted {
+    background: rgba(15, 118, 110, 0.08);
+    color: var(--primary-deep);
+}
+
 .detail-panel--sections .section-list {
     margin-top: 1rem;
 }
@@ -1027,6 +1148,13 @@ ul.errorlist {
     border: 1px solid var(--line);
     border-radius: 24px;
     background: var(--panel-strong);
+}
+
+.section-card--highlighted {
+    border-color: rgba(15, 118, 110, 0.38);
+    background:
+        linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(255, 255, 255, 0.9));
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
 }
 
 .section-card__header {
@@ -1072,6 +1200,11 @@ ul.errorlist {
     border-radius: 18px;
     background: var(--panel-strong);
     height: 100%;
+}
+
+.mini-item--catalog {
+    display: grid;
+    gap: 0.9rem;
 }
 
 .dashboard-table-wrap {

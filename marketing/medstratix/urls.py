@@ -4,6 +4,7 @@ from .views import (
     SignInView,
     SignOutView,
     SignUpView,
+    biomarker_catalog,
     guideline_dashboard,
     guideline_detail,
     guideline_workspace,
@@ -19,6 +20,7 @@ app_name = "medstratix"
 urlpatterns = [
     path("", home, name="home"),
     path("workspace/dashboard/", guideline_dashboard, name="guideline_dashboard"),
+    path("workspace/biomarkers/", biomarker_catalog, name="biomarker_catalog"),
     path("workspace/testing-panels/", testing_panels, name="testing_panels"),
     path("workspace/therapy-panels/", therapy_panels, name="therapy_panels"),
     path("workspace/", guideline_workspace, name="guideline_workspace"),

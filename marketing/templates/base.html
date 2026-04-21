@@ -16,6 +16,7 @@
                 {% if request.user.is_authenticated %}
                     <a href="{% url 'medstratix:guideline_workspace' %}">Workspace</a>
                     <a href="{% url 'medstratix:guideline_dashboard' %}">Dashboard</a>
+                    <a href="{% url 'medstratix:biomarker_catalog' %}">Biomarkers</a>
                     <a href="{% url 'medstratix:testing_panels' %}">Testing Panels</a>
                     <a href="{% url 'medstratix:therapy_panels' %}">Therapy Rules</a>
                     <form method="post" action="{% url 'medstratix:logout' %}">

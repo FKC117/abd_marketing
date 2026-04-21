@@ -65,6 +65,10 @@
             <strong>{{ snapshot.testing }}</strong>
         </article>
         <article class="metric-card">
+            <span>Variants</span>
+            <strong>{{ variant_rules|length }}</strong>
+        </article>
+        <article class="metric-card">
             <span>Therapy Rules</span>
             <strong>{{ snapshot.therapies }}</strong>
         </article>
@@ -78,6 +82,47 @@
         </article>
     </section>
 
+    <section class="workspace-strip detail-pathway-strip">
+        <article class="metric-card metric-card--workspace">
+            <span>Top Biomarkers</span>
+            <strong>{{ pathway_summary.top_biomarkers|length }}</strong>
+            <div class="gene-chip-row">
+                {% for biomarker in pathway_summary.top_biomarkers %}
+                    <span class="gene-chip">{{ biomarker }}</span>
+                {% empty %}
+                    <span class="table-subtle">No biomarkers yet.</span>
+                {% endfor %}
+            </div>
+        </article>
+        <article class="metric-card metric-card--workspace">
+            <span>Testing Footprint</span>
+            <strong>{{ pathway_summary.top_methods|length }}</strong>
+            <div class="gene-chip-row">
+                {% for method in pathway_summary.top_methods %}
+                    <span class="gene-chip gene-chip--variant">{{ method }}</span>
+                {% empty %}
+                    <span class="table-subtle">No testing methods yet.</span>
+                {% endfor %}
+            </div>
+        </article>
+        <article class="metric-card metric-card--workspace">
+            <span>Therapy Footprint</span>
+            <strong>{{ pathway_summary.top_therapies|length }}</strong>
+            <div class="gene-chip-row">
+                {% for therapy in pathway_summary.top_therapies %}
+                    <span class="gene-chip gene-chip--total">{{ therapy }}</span>
+                {% empty %}
+                    <span class="table-subtle">No therapies yet.</span>
+                {% endfor %}
+            </div>
+        </article>
+        <article class="metric-card metric-card--workspace">
+            <span>Source Links</span>
+            <strong>{{ pathway_summary.source_links }}</strong>
+            <p class="table-subtle">Variant, testing, and therapy items that can jump back to extracted sections.</p>
+        </article>
+    </section>
+
     <section class="detail-shell">
         <article class="workspace-panel detail-panel">
             <div class="section-heading">
@@ -85,7 +130,7 @@
                 <h2>Biomarkers, testing, and therapies in one bounded view.</h2>
             </div>
 
-            <div class="detail-columns">
+            <div class="detail-columns detail-columns--four">
                 <section class="detail-column">
                     <div class="detail-column__header">
                         <h3>Biomarkers</h3>
@@ -94,13 +139,95 @@
                     <div class="detail-scroll">
                         <div class="mini-list">
                             {% for biomarker in biomarker_definitions %}
-                                <div class="mini-item">
-                                    <strong>{{ biomarker.gene.symbol }}</strong>
-                                    <p>{{ biomarker.get_alteration_family_display }} | Priority {{ biomarker.priority_rank }}</p>
-                                    <p>{{ biomarker.guideline_context }}</p>
-                                </div>
+                                <details class="mini-item mini-item--expandable" {% if forloop.first %}open{% endif %}>
+                                    <summary class="mini-item__summary">
+                                        <div>
+                                            <strong>{{ biomarker.gene.symbol }}</strong>
+                                            <p>{{ biomarker.get_alteration_family_display }} | Priority {{ biomarker.priority_rank }}</p>
+                                        </div>
+                                        <span class="mini-item__count">{{ biomarker.variant_rules.all|length }} variants</span>
+                                    </summary>
+                                    <div class="mini-item__body">
+                                        <p>{{ biomarker.guideline_context }}</p>
+                                        <div class="detail-linked-variants">
+                                            <p class="detail-linked-variants__label">Linked variants</p>
+                                            <div class="gene-chip-row">
+                                                {% for variant in biomarker.variant_rules.all %}
+                                                    {% if variant.source_section and variant.source_page_number %}
+                                                        <a class="gene-chip gene-chip--variant" href="?sections_page={{ variant.source_page_number }}&selected_section={{ variant.source_section_id }}#section-{{ variant.source_section_id }}">{{ variant.variant_label }}</a>
+                                                    {% else %}
+                                                        <span class="gene-chip gene-chip--variant">{{ variant.variant_label }}</span>
+                                                    {% endif %}
+                                                {% empty %}
+                                                    <span class="table-subtle">No linked variants yet.</span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        <div class="detail-linked-testing">
+                                            <p class="detail-linked-variants__label">Testing methods</p>
+                                            <div class="mini-stack">
+                                                {% for testing_rule in biomarker.testing_method_rules.all %}
+                                                    <div class="mini-stack__item">
+                                                        <strong>{{ testing_rule.get_method_type_display }}</strong>
+                                                        <span>
+                                                            {% if testing_rule.is_required %}Required{% else %}Optional{% endif %}
+                                                            {% if testing_rule.preferred_rank %} | Rank {{ testing_rule.preferred_rank }}{% endif %}
+                                                        </span>
+                                                        {% if testing_rule.source_section and testing_rule.source_page_number %}
+                                                            <a class="mini-stack__link" href="?sections_page={{ testing_rule.source_page_number }}&selected_section={{ testing_rule.source_section_id }}#section-{{ testing_rule.source_section_id }}">View source section</a>
+                                                        {% endif %}
+                                                    </div>
+                                                {% empty %}
+                                                    <span class="table-subtle">No linked testing methods yet.</span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
                             {% empty %}
                                 <p>No biomarker definitions created yet.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="detail-column">
+                    <div class="detail-column__header">
+                        <h3>Variants</h3>
+                        <span>{{ variant_rules|length }}</span>
+                    </div>
+                    <div class="detail-scroll">
+                        <div class="mini-list">
+                            {% for variant_rule in variant_rules %}
+                                <div class="mini-item">
+                                    <strong>{{ variant_rule.variant_label }}</strong>
+                                    <p>{{ variant_rule.biomarker_definition.gene.symbol }}{% if variant_rule.variant_type %} | {{ variant_rule.variant_type|title }}{% endif %}</p>
+                                    <p>
+                                        {% if variant_rule.stage_context %}{{ variant_rule.stage_context }}{% else %}Stage not set{% endif %}
+                                        {% if variant_rule.line_of_therapy %} | {{ variant_rule.line_of_therapy }}{% endif %}
+                                    </p>
+                                    {% if variant_rule.source_section and variant_rule.source_page_number %}
+                                        <a class="mini-stack__link" href="?sections_page={{ variant_rule.source_page_number }}&selected_section={{ variant_rule.source_section_id }}#section-{{ variant_rule.source_section_id }}">View source section</a>
+                                    {% endif %}
+                                    <div class="detail-linked-therapies">
+                                        <p class="detail-linked-variants__label">Linked therapies</p>
+                                        <div class="mini-stack">
+                                            {% for therapy_rule in variant_rule.therapy_rules.all %}
+                                                <div class="mini-stack__item">
+                                                    <strong>{{ therapy_rule.therapy_definition.name }}</strong>
+                                                    <span>{{ therapy_rule.therapy_line|default:"line not set" }} | {{ therapy_rule.get_therapy_role_display }}</span>
+                                                    {% if therapy_rule.source_section and therapy_rule.source_page_number %}
+                                                        <a class="mini-stack__link" href="?sections_page={{ therapy_rule.source_page_number }}&selected_section={{ therapy_rule.source_section_id }}#section-{{ therapy_rule.source_section_id }}">View source section</a>
+                                                    {% endif %}
+                                                </div>
+                                            {% empty %}
+                                                <span class="table-subtle">No linked therapies yet.</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <p>No variant rules created yet.</p>
                             {% endfor %}
                         </div>
                     </div>
@@ -118,6 +245,9 @@
                                     <strong>{{ testing_rule.biomarker_definition.gene.symbol }}</strong>
                                     <p>{{ testing_rule.get_method_type_display }}{% if testing_rule.is_required %} | Required{% endif %}</p>
                                     <p>{{ testing_rule.notes|default:"No notes yet." }}</p>
+                                    {% if testing_rule.source_section and testing_rule.source_page_number %}
+                                        <a class="mini-stack__link" href="?sections_page={{ testing_rule.source_page_number }}&selected_section={{ testing_rule.source_section_id }}#section-{{ testing_rule.source_section_id }}">View source section</a>
+                                    {% endif %}
                                 </div>
                             {% empty %}
                                 <p>No testing rules created yet.</p>
@@ -138,6 +268,9 @@
                                     <strong>{{ therapy_rule.therapy_definition.name }}</strong>
                                     <p>{{ therapy_rule.biomarker_variant_rule.variant_label }}</p>
                                     <p>{{ therapy_rule.therapy_line|default:"line not set" }} | {{ therapy_rule.get_therapy_role_display }}</p>
+                                    {% if therapy_rule.source_section and therapy_rule.source_page_number %}
+                                        <a class="mini-stack__link" href="?sections_page={{ therapy_rule.source_page_number }}&selected_section={{ therapy_rule.source_section_id }}#section-{{ therapy_rule.source_section_id }}">View source section</a>
+                                    {% endif %}
                                 </div>
                             {% empty %}
                                 <p>No therapy rules created yet.</p>
@@ -159,7 +292,7 @@
 
             <div class="section-list">
                 {% for section in sections %}
-                    <article class="section-card">
+                    <article class="section-card {% if selected_section_id == section.pk|stringformat:'s' %}section-card--highlighted{% endif %}" id="section-{{ section.pk }}">
                         <div class="section-card__header">
                             <div>
                                 <span class="workspace-card__type">
@@ -174,7 +307,7 @@
                                 </span>
                             </div>
                         </div>
-                        <details class="section-details">
+                        <details class="section-details" {% if selected_section_id == section.pk|stringformat:'s' %}open{% endif %}>
                             <summary>View extracted text</summary>
                             <pre class="section-text">{{ section.normalized_text|default:section.raw_text }}</pre>
                         </details>

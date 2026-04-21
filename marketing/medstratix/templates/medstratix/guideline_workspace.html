@@ -151,6 +151,7 @@
                                 <div class="workspace-card__stats">
                                     <span>{{ item.sections }} sections</span>
                                     <span>{{ item.biomarkers }} biomarkers</span>
+                                    <span>{{ item.variants }} variants</span>
                                     <span>{{ item.testing }} testing rules</span>
                                     <span>{{ item.therapies }} therapy rules</span>
                                 </div>
@@ -163,6 +164,20 @@
                                         <strong>No parser profile</strong>
                                         <span>Needs mapping</span>
                                     {% endif %}
+                                </div>
+
+                                <div class="workspace-card__variants">
+                                    <p class="workspace-card__variants-label">Variant preview</p>
+                                    <div class="gene-chip-row">
+                                        {% for variant in item.variant_preview %}
+                                            <span class="gene-chip gene-chip--variant">{{ variant }}</span>
+                                        {% empty %}
+                                            <span class="table-subtle">No structured variants yet.</span>
+                                        {% endfor %}
+                                        {% if item.variant_overflow %}
+                                            <span class="gene-chip gene-chip--variant-muted">+{{ item.variant_overflow }} more</span>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
 

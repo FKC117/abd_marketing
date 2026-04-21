@@ -5,13 +5,20 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import CreateView
 from urllib.parse import urlencode
 from .forms import GuidelineUploadForm, SignInForm, SignUpForm
-from .models import GuidelineDocument, GuidelineTherapyRule, TestingMethodRule, TestingMethodType
+from .models import (
+    BiomarkerDefinition,
+    BiomarkerVariantRule,
+    GuidelineDocument,
+    GuidelineTherapyRule,
+    TestingMethodRule,
+    TestingMethodType,
+)
 from .services.guideline_pipeline import process_guideline_document
 from .services.nccn_profiles import get_parser_profile
 
@@ -31,6 +38,9 @@ def _guideline_depth_label(guideline: GuidelineDocument) -> str:
 def _guideline_snapshot(guideline: GuidelineDocument) -> dict:
     sections = guideline.sections.count()
     biomarkers = guideline.biomarker_definitions.count()
+    variant_labels = list(
+        guideline.biomarker_variant_rules.order_by("variant_label").values_list("variant_label", flat=True).distinct()
+    )
     therapies = guideline.therapy_rules.count()
     testing = guideline.testing_method_rules.count()
     parser_profile = get_parser_profile(
@@ -43,6 +53,9 @@ def _guideline_snapshot(guideline: GuidelineDocument) -> dict:
         "guideline": guideline,
         "sections": sections,
         "biomarkers": biomarkers,
+        "variants": len(variant_labels),
+        "variant_preview": variant_labels[:8],
+        "variant_overflow": max(len(variant_labels) - 8, 0),
         "therapies": therapies,
         "testing": testing,
         "profile": parser_profile,
@@ -168,6 +181,69 @@ def _aggregate_therapy_panel() -> dict:
         "unique_therapies": all_therapies,
         "unique_therapy_count": len(all_therapies),
     }
+
+
+def _aggregate_biomarker_catalog(search_query: str = "") -> dict:
+    biomarker_qs = BiomarkerDefinition.objects.select_related("gene")
+    variant_qs = BiomarkerVariantRule.objects.select_related("biomarker_definition__gene")
+
+    if search_query:
+        biomarker_qs = biomarker_qs.filter(
+            Q(gene__symbol__icontains=search_query)
+            | Q(cancer_type__icontains=search_query)
+            | Q(description__icontains=search_query)
+        )
+        variant_qs = variant_qs.filter(
+            Q(variant_label__icontains=search_query)
+            | Q(biomarker_definition__gene__symbol__icontains=search_query)
+            | Q(cancer_type__icontains=search_query)
+        )
+
+    grouped: dict[str, dict[str, set[str]]] = defaultdict(lambda: {"genes": set(), "variants": set()})
+
+    for cancer_type, gene_symbol in biomarker_qs.values_list("cancer_type", "gene__symbol"):
+        disease = (cancer_type or "Unspecified disease").strip()
+        symbol = (gene_symbol or "").strip()
+        if symbol:
+            grouped[disease]["genes"].add(symbol)
+
+    for cancer_type, variant_label in variant_qs.values_list("cancer_type", "variant_label"):
+        disease = (cancer_type or "Unspecified disease").strip()
+        variant = (variant_label or "").strip()
+        if variant:
+            grouped[disease]["variants"].add(variant)
+
+    diseases = [
+        {
+            "disease": disease,
+            "genes": sorted(payload["genes"]),
+            "variants": sorted(payload["variants"]),
+            "gene_count": len(payload["genes"]),
+            "variant_count": len(payload["variants"]),
+        }
+        for disease, payload in grouped.items()
+    ]
+    diseases.sort(key=lambda item: item["disease"].lower())
+
+    unique_genes = sorted({gene for item in diseases for gene in item["genes"]})
+    unique_variants = sorted({variant for item in diseases for variant in item["variants"]})
+
+    return {
+        "diseases": diseases,
+        "disease_count": len(diseases),
+        "gene_total": sum(item["gene_count"] for item in diseases),
+        "variant_total": sum(item["variant_count"] for item in diseases),
+        "unique_genes": unique_genes,
+        "unique_gene_count": len(unique_genes),
+        "unique_variants": unique_variants,
+        "unique_variant_count": len(unique_variants),
+    }
+
+
+def _attach_source_pages(items, page_lookup: dict[int, int]) -> None:
+    for item in items:
+        source_section = getattr(item, "source_section", None)
+        item.source_page_number = page_lookup.get(source_section.pk) if source_section else None
 
 
 def home(request):
@@ -361,7 +437,13 @@ def run_guideline_extraction(request, pk):
 @login_required
 def guideline_detail(request, pk):
     guideline = get_object_or_404(GuidelineDocument, pk=pk)
+    selected_section_id = request.GET.get("selected_section", "").strip()
     sections = guideline.sections.order_by("page_start", "title")
+    ordered_sections = list(sections)
+    section_page_lookup = {
+        section.pk: (index // 12) + 1
+        for index, section in enumerate(ordered_sections)
+    }
     section_paginator = Paginator(sections, 12)
     section_page_obj = section_paginator.get_page(request.GET.get("sections_page"))
     parser_profile = get_parser_profile(
@@ -371,18 +453,70 @@ def guideline_detail(request, pk):
     )
     snapshot = _guideline_snapshot(guideline)
     biomarker_definitions = list(
-        guideline.biomarker_definitions.select_related("gene").order_by("priority_rank", "gene__symbol")
+        guideline.biomarker_definitions.select_related("gene")
+        .prefetch_related(
+            Prefetch(
+                "variant_rules",
+                queryset=guideline.biomarker_variant_rules.select_related(
+                    "biomarker_definition__gene",
+                    "source_section",
+                ).order_by("variant_label"),
+            ),
+            Prefetch(
+                "testing_method_rules",
+                queryset=guideline.testing_method_rules.select_related(
+                    "biomarker_definition__gene",
+                    "source_section",
+                ).order_by("preferred_rank", "method_type"),
+            ),
+        )
+        .order_by("priority_rank", "gene__symbol")
     )
     therapy_rules = list(
-        guideline.therapy_rules.select_related("therapy_definition", "biomarker_variant_rule").order_by(
-            "therapy_definition__name"
+        guideline.therapy_rules.select_related(
+            "therapy_definition",
+            "biomarker_variant_rule",
+            "source_section",
+        ).order_by("therapy_definition__name")
+    )
+    variant_rules = list(
+        guideline.biomarker_variant_rules.select_related("biomarker_definition__gene", "source_section")
+        .prefetch_related(
+            Prefetch(
+                "therapy_rules",
+                queryset=guideline.therapy_rules.select_related(
+                    "therapy_definition",
+                    "source_section",
+                ).order_by("therapy_definition__name"),
+            )
         )
+        .order_by("biomarker_definition__gene__symbol", "variant_label")
     )
     testing_rules = list(
-        guideline.testing_method_rules.select_related("biomarker_definition__gene").order_by(
+        guideline.testing_method_rules.select_related("biomarker_definition__gene", "source_section").order_by(
             "biomarker_definition__gene__symbol", "preferred_rank"
         )
     )
+    _attach_source_pages(variant_rules, section_page_lookup)
+    _attach_source_pages(testing_rules, section_page_lookup)
+    _attach_source_pages(therapy_rules, section_page_lookup)
+    for biomarker in biomarker_definitions:
+        _attach_source_pages(biomarker.variant_rules.all(), section_page_lookup)
+        _attach_source_pages(biomarker.testing_method_rules.all(), section_page_lookup)
+    for variant_rule in variant_rules:
+        _attach_source_pages(variant_rule.therapy_rules.all(), section_page_lookup)
+
+    pathway_summary = {
+        "top_biomarkers": [biomarker.gene.symbol for biomarker in biomarker_definitions[:5]],
+        "top_methods": list(dict.fromkeys(rule.get_method_type_display() for rule in testing_rules[:6])),
+        "top_therapies": list(dict.fromkeys(rule.therapy_definition.name for rule in therapy_rules[:6])),
+        "source_links": sum(
+            1
+            for collection in (variant_rules, testing_rules, therapy_rules)
+            for item in collection
+            if getattr(item, "source_section", None)
+        ),
+    }
 
     context = {
         "page_title": guideline.name,
@@ -392,8 +526,11 @@ def guideline_detail(request, pk):
         "parser_profile": parser_profile,
         "snapshot": snapshot,
         "biomarker_definitions": biomarker_definitions,
+        "variant_rules": variant_rules,
         "therapy_rules": therapy_rules,
         "testing_rules": testing_rules,
+        "pathway_summary": pathway_summary,
+        "selected_section_id": selected_section_id,
         "section_type_counts": {
             "biomarker": sections.filter(section_type="biomarker").count(),
             "testing": sections.filter(section_type="testing").count(),
@@ -576,3 +713,33 @@ def therapy_panels(request):
         },
     }
     return render(request, "medstratix/therapy_panels.html", context)
+
+
+@login_required
+def biomarker_catalog(request):
+    search_query = request.GET.get("q", "").strip()
+    catalog = _aggregate_biomarker_catalog(search_query)
+    paginator = Paginator(catalog["diseases"], 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    context = {
+        "page_title": "Biomarker Catalog",
+        "catalog": {**catalog, "diseases": list(page_obj.object_list)},
+        "page_obj": page_obj,
+        "filters": {
+            "q": search_query,
+            "query_suffix": _query_without_page(request),
+        },
+        "active_filter_chips": _active_filter_chips(
+            {"q": search_query},
+            reverse_lazy("medstratix:biomarker_catalog"),
+        ),
+        "summary": {
+            "disease_buckets": catalog["disease_count"],
+            "total_gene_entries": catalog["gene_total"],
+            "total_variant_entries": catalog["variant_total"],
+            "unique_genes": catalog["unique_gene_count"],
+            "unique_variants": catalog["unique_variant_count"],
+        },
+    }
+    return render(request, "medstratix/biomarker_catalog.html", context)

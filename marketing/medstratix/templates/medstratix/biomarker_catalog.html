@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Biomarker Catalog{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Biomarker Catalog</span>
+            <h1 class="workspace-title">See the total biomarker and variant universe currently structured in MedStratix.</h1>
+            <p class="lead">
+                This page is generated from the database, not hardcoded lists. It shows the complete deduplicated
+                biomarker and variant set, plus the disease-grouped view for easier review.
+            </p>
+            <div class="hero-actions">
+                <a class="button button-secondary" href="{% url 'medstratix:guideline_workspace' %}">Back To Workspace</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics dashboard-metrics--wide">
+        <article class="metric-card">
+            <span>Disease Buckets</span>
+            <strong>{{ summary.disease_buckets }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Gene Entries</span>
+            <strong>{{ summary.total_gene_entries }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Total Variant Entries</span>
+            <strong>{{ summary.total_variant_entries }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Unique Genes</span>
+            <strong>{{ summary.unique_genes }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Unique Variants</span>
+            <strong>{{ summary.unique_variants }}</strong>
+        </article>
+        <article class="metric-card">
+            <span>Visible Diseases</span>
+            <strong>{{ page_obj.paginator.count }}</strong>
+        </article>
+    </section>
+
+    <section class="section-block dashboard-panel">
+        <div class="dashboard-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Catalog Controls</span>
+                <h2>Search the structured biomarker layer without losing the full totals.</h2>
+            </div>
+            <p class="workspace-page-meta">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+        </div>
+
+        <form method="get" class="filter-bar">
+            <div class="filter-bar__group filter-bar__group--wide">
+                <label for="catalog-q">Search</label>
+                <input id="catalog-q" class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="Search gene, variant, or disease">
+            </div>
+            <div class="filter-bar__actions">
+                <button class="button button-primary workspace-button" type="submit">Apply</button>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:biomarker_catalog' %}">Reset</a>
+            </div>
+        </form>
+
+        {% if active_filter_chips %}
+            <div class="active-filters">
+                {% for chip in active_filter_chips %}
+                    <a class="filter-chip" href="{{ chip.remove_url }}">
+                        <span>{{ chip.label }}: {{ chip.value }}</span>
+                        <strong>Clear</strong>
+                    </a>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="panel-catalog panel-catalog--single">
+            <article class="workspace-panel panel-catalog__card">
+                <div class="section-heading">
+                    <span class="eyebrow">Total List</span>
+                    <h2>Complete biomarker and variant list from the current database.</h2>
+                </div>
+
+                <div class="workspace-card__stats">
+                    <span>{{ catalog.unique_gene_count }} unique genes</span>
+                    <span>{{ catalog.unique_variant_count }} unique variants</span>
+                    <span>{{ catalog.disease_count }} disease buckets</span>
+                </div>
+
+                <div class="panel-total-list">
+                    <p class="panel-total-list__label">Complete biomarker gene list</p>
+                    <div class="gene-chip-row">
+                        {% for gene in catalog.unique_genes %}
+                            <span class="gene-chip gene-chip--total">{{ gene }}</span>
+                        {% empty %}
+                            <span class="table-subtle">No biomarker genes stored yet.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="panel-total-list">
+                    <p class="panel-total-list__label">Complete variant list</p>
+                    <div class="gene-chip-row">
+                        {% for variant in catalog.unique_variants %}
+                            <span class="gene-chip gene-chip--variant">{{ variant }}</span>
+                        {% empty %}
+                            <span class="table-subtle">No variants stored yet.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="section-block dashboard-panel">
+        <div class="dashboard-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">By Disease</span>
+                <h2>Paginated disease-level biomarker and variant groups.</h2>
+            </div>
+            <p class="workspace-page-meta">{{ page_obj.paginator.count }} disease buckets matched</p>
+        </div>
+
+        <div class="panel-catalog panel-catalog--single">
+            <article class="workspace-panel panel-catalog__card">
+                <div class="panel-catalog__scroll panel-catalog__scroll--tall">
+                    <div class="mini-list">
+                        {% for disease in catalog.diseases %}
+                            <div class="mini-item mini-item--catalog">
+                                <strong>{{ disease.disease }}</strong>
+                                <p>{{ disease.gene_count }} genes | {{ disease.variant_count }} variants</p>
+
+                                <div class="panel-total-list">
+                                    <p class="panel-total-list__label">Genes</p>
+                                    <div class="gene-chip-row">
+                                        {% for gene in disease.genes %}
+                                            <span class="gene-chip">{{ gene }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <div class="panel-total-list">
+                                    <p class="panel-total-list__label">Variants</p>
+                                    <div class="gene-chip-row">
+                                        {% for variant in disease.variants %}
+                                            <span class="gene-chip gene-chip--variant">{{ variant }}</span>
+                                        {% empty %}
+                                            <span class="table-subtle">No variants stored for this disease.</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="empty-state">
+                                <h3>No biomarker records match this search.</h3>
+                                <p>Try a broader term or reset the catalog filters.</p>
+                                <a class="button button-secondary" href="{% url 'medstratix:biomarker_catalog' %}">Clear Filters</a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <div class="pager">
+            {% if page_obj.has_previous %}
+                <a class="pager__link" href="?page={{ page_obj.previous_page_number }}{{ filters.query_suffix }}">Previous</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Previous</span>
+            {% endif %}
+
+            <span class="pager__status">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a class="pager__link" href="?page={{ page_obj.next_page_number }}{{ filters.query_suffix }}">Next</a>
+            {% else %}
+                <span class="pager__link pager__link--disabled">Next</span>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}
