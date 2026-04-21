@@ -26,6 +26,7 @@ from .models import (
     BiomarkerDefinition,
     BiomarkerVariantRule,
     CompanyType,
+    ComparisonRun,
     GuidelineDocument,
     GuidelineTherapyRule,
     LLMGenerationLog,
@@ -39,7 +40,7 @@ from .models import (
 )
 from .services.guideline_pipeline import process_guideline_document
 from .services.nccn_profiles import get_parser_profile
-from .services.panel_comparison import build_comparison_bundle
+from .services.panel_comparison import build_comparison_bundle, build_guideline_coverage, build_panel_set_profile, compare_panel_profiles
 from .services.strategy_exporter import build_strategy_docx
 from .services.panel_upload import save_uploaded_panel
 from .services.strategy_generator import generate_structured_strategy
@@ -112,6 +113,19 @@ def _serialize_competitor_ids(panels: list[Panel]) -> str:
 
 
 def _parse_competitor_ids(raw_value: str) -> list[int]:
+    values = []
+    for token in (raw_value or "").split(","):
+        token = token.strip()
+        if token.isdigit():
+            values.append(int(token))
+    return values
+
+
+def _serialize_panel_ids(panels: list[Panel]) -> str:
+    return ",".join(str(panel.pk) for panel in panels)
+
+
+def _parse_panel_ids(raw_value: str) -> list[int]:
     values = []
     for token in (raw_value or "").split(","):
         token = token.strip()
@@ -370,7 +384,10 @@ def _strategy_export_payload(report: StrategyReport, latest_log: LLMGenerationLo
             "price_bdt": str(report.competitor_panel.price) if report.competitor_panel.price is not None else "",
             "tat": report.competitor_panel.tat,
         },
+        "your_panels": report.report_json.get("your_panels", []),
+        "competitor_panels": report.report_json.get("competitor_panels", []),
         "market_accounts": report.report_json.get("market_accounts", []),
+        "strategist_note": report.report_json.get("strategist_note", ""),
         "primary_market_account": report.market_account.name if report.market_account else "",
         "executive_summary": report.executive_summary,
         "swot": report.swot_json,
@@ -407,6 +424,8 @@ def _strategy_export_text(payload: dict) -> str:
         f"- Price BDT: {payload['your_panel']['price_bdt'] or 'N/A'}",
         f"- TAT: {payload['your_panel']['tat'] or 'N/A'}",
         "",
+        "Your Panel Set",
+        "",
         "Competitor Panel",
         f"- Company: {payload['competitor_panel']['company']}",
         f"- Name: {payload['competitor_panel']['name']}",
@@ -414,8 +433,24 @@ def _strategy_export_text(payload: dict) -> str:
         f"- Price BDT: {payload['competitor_panel']['price_bdt'] or 'N/A'}",
         f"- TAT: {payload['competitor_panel']['tat'] or 'N/A'}",
         "",
+        "Competitor Panel Set",
+        "",
         "Market Accounts",
     ]
+    your_panels = payload.get("your_panels") or []
+    if your_panels:
+        for panel in your_panels:
+            lines.append(f"- {panel.get('company', 'Unknown')} | {panel.get('name', 'Unknown')} | {panel.get('sample_type', 'N/A')}")
+    else:
+        lines.append("- None")
+    lines.append("")
+    competitor_panels = payload.get("competitor_panels") or []
+    if competitor_panels:
+        for panel in competitor_panels:
+            lines.append(f"- {panel.get('company', 'Unknown')} | {panel.get('name', 'Unknown')} | {panel.get('sample_type', 'N/A')}")
+    else:
+        lines.append("- None")
+    lines.append("")
     market_accounts = payload.get("market_accounts") or []
     if market_accounts:
         for account in market_accounts:
@@ -496,8 +531,8 @@ def _strategy_export_text(payload: dict) -> str:
     lines.extend(
         [
             "",
-            "LLM Audit",
-            f"- Provider: {payload.get('llm_audit', {}).get('provider', 'N/A')}",
+        "LLM Audit",
+        f"- Provider: {payload.get('llm_audit', {}).get('provider', 'N/A')}",
             f"- Model: {payload.get('llm_audit', {}).get('model', 'N/A')}",
             f"- Prompt Tokens: {payload.get('llm_audit', {}).get('prompt_tokens', 0)}",
             f"- Response Tokens: {payload.get('llm_audit', {}).get('response_tokens', 0)}",
@@ -505,6 +540,8 @@ def _strategy_export_text(payload: dict) -> str:
             f"- Estimated Cost USD: {payload.get('llm_audit', {}).get('estimated_cost_usd', '0')}",
         ]
     )
+    if payload.get("strategist_note"):
+        lines.extend(["", "Strategist Note", payload["strategist_note"]])
     return "\n".join(lines)
 
 
@@ -867,14 +904,24 @@ def panel_compare_setup(request):
     if request.method == "POST":
         form = PanelComparisonSelectForm(request.POST)
         if form.is_valid():
-            selected_your_panel = form.cleaned_data["your_panel"]
+            selected_your_panels = list(form.cleaned_data["your_panels"])
             selected_competitors = list(form.cleaned_data["competitor_panels"])
-            if not selected_competitors:
-                messages.error(request, "Choose at least one competitor panel for comparison.")
+            if not selected_your_panels or not selected_competitors:
+                messages.error(request, "Choose at least one of your panels and at least one competitor panel for comparison.")
             else:
+                comparison_run = ComparisonRun.objects.create(
+                    created_by=request.user,
+                    name=f"Comparison run for {len(selected_your_panels)} your panels vs {len(selected_competitors)} competitor panels",
+                    summary_json={
+                        "your_panels": [panel.pk for panel in selected_your_panels],
+                        "competitor_panels": [panel.pk for panel in selected_competitors],
+                    },
+                )
+                comparison_run.your_panels.set(selected_your_panels)
+                comparison_run.competitor_panels.set(selected_competitors)
                 return redirect(
                     f"{reverse_lazy('medstratix:panel_compare_result')}"
-                    f"?your_panel={selected_your_panel.pk}&competitors={_serialize_competitor_ids(selected_competitors)}"
+                    f"?run={comparison_run.pk}&your_panels={_serialize_panel_ids(selected_your_panels)}&competitors={_serialize_competitor_ids(selected_competitors)}"
                 )
     else:
         form = PanelComparisonSelectForm()
@@ -888,25 +935,41 @@ def panel_compare_setup(request):
 
 @login_required
 def panel_compare_result(request):
-    your_panel_id = request.GET.get("your_panel", "").strip()
+    run_id = request.GET.get("run", "").strip()
+    comparison_run = None
+    if run_id.isdigit():
+        comparison_run = ComparisonRun.objects.prefetch_related("your_panels__company", "competitor_panels__company").filter(pk=int(run_id)).first()
+
+    your_panel_ids = _parse_panel_ids(request.GET.get("your_panels", ""))
     competitor_ids = _parse_competitor_ids(request.GET.get("competitors", ""))
     disease_filter = request.GET.get("disease", "").strip()
 
-    if not your_panel_id.isdigit() or not competitor_ids:
-        messages.error(request, "Select one of your panels and at least one competitor panel to view results.")
+    if not comparison_run and (not your_panel_ids or not competitor_ids):
+        messages.error(request, "Select at least one of your panels and at least one competitor panel to view results.")
         return redirect("medstratix:panel_compare_setup")
 
-    your_panel = get_object_or_404(Panel.objects.select_related("company"), pk=int(your_panel_id), company__type=CompanyType.YOURS)
-    competitor_panels = list(
-        Panel.objects.select_related("company")
-        .filter(pk__in=competitor_ids, company__type=CompanyType.COMPETITOR)
-        .order_by("company__name", "name")
-    )
-    if not competitor_panels:
+    if comparison_run:
+        your_panels = list(comparison_run.your_panels.all().order_by("company__name", "name"))
+        competitor_panels = list(comparison_run.competitor_panels.all().order_by("company__name", "name"))
+    else:
+        your_panels = list(
+            Panel.objects.select_related("company")
+            .filter(pk__in=your_panel_ids, company__type=CompanyType.YOURS)
+            .order_by("company__name", "name")
+        )
+        competitor_panels = list(
+            Panel.objects.select_related("company")
+            .filter(pk__in=competitor_ids, company__type=CompanyType.COMPETITOR)
+            .order_by("company__name", "name")
+        )
+    if not your_panels or not competitor_panels:
         messages.error(request, "No competitor panels were found for this comparison.")
         return redirect("medstratix:panel_compare_setup")
 
-    comparison_bundle = build_comparison_bundle(your_panel, competitor_panels)
+    primary_your_panel = your_panels[0]
+    your_panel_ids = [panel.pk for panel in your_panels]
+    competitor_ids = [panel.pk for panel in competitor_panels]
+    comparison_bundle = build_comparison_bundle(your_panels, competitor_panels)
     market_accounts = list(MarketAccount.objects.prefetch_related("stakeholders").order_by("name"))
     disease_choices = sorted(
         {item["guideline"].cancer_type for item in comparison_bundle["your_guideline_coverage"]["results"] if item["guideline"].cancer_type}
@@ -925,46 +988,60 @@ def panel_compare_result(request):
 
     strategy_outputs = []
     selected_market_account_ids = []
+    strategist_note = ""
     if request.method == "POST":
         competitor_panel_id = request.POST.get("competitor_panel_id", "").strip()
+        strategy_scope = request.POST.get("strategy_scope", "single").strip() or "single"
         selected_market_account_ids = request.POST.getlist("market_account_ids")
+        strategist_note = request.POST.get("strategist_note", "").strip()
         target_competitor = next((panel for panel in competitor_panels if str(panel.pk) == competitor_panel_id), None)
         selected_accounts = _selected_market_accounts(market_accounts, selected_market_account_ids)
         primary_account = selected_accounts[0] if selected_accounts else None
         selected_stakeholders = []
         for account in selected_accounts:
             selected_stakeholders.extend(list(account.stakeholders.all()))
-        if target_competitor:
+        if strategy_scope == "set" or target_competitor:
+            competitor_profile = build_panel_set_profile(competitor_panels) if strategy_scope == "set" else build_panel_set_profile([target_competitor])
+            competitor_label = competitor_profile["name"] if strategy_scope == "set" else target_competitor.name
             logger.info(
                 "Strategy generation requested your_panel=%s competitor_panel=%s disease_filter=%s market_accounts=%s",
-                your_panel.name,
-                target_competitor.name,
+                comparison_bundle["your_panel_set"]["name"],
+                competitor_label,
                 disease_filter or "ALL",
                 [account.name for account in selected_accounts],
             )
-            competitor_bundle = next(
-                (payload for payload in comparison_bundle["competitor_guideline_coverages"] if payload["panel"].pk == target_competitor.pk),
-                None,
+            competitor_bundle = (
+                build_guideline_coverage(competitor_profile)
+                if strategy_scope == "set"
+                else next(
+                    (payload for payload in comparison_bundle["competitor_guideline_coverages"] if payload["panel"].pk == target_competitor.pk),
+                    None,
+                )
             )
-            comparison_pair = next(
-                (payload for payload in comparison_bundle["competitor_comparisons"] if payload["competitor_panel"].pk == target_competitor.pk),
-                None,
+            comparison_pair = (
+                compare_panel_profiles(comparison_bundle["your_panel_set"], competitor_profile)
+                if strategy_scope == "set"
+                else next(
+                    (payload for payload in comparison_bundle["competitor_comparisons"] if payload["competitor_panel"].pk == target_competitor.pk),
+                    None,
+                )
             )
             try:
                 strategy_result = generate_structured_strategy(
-                    your_panel=your_panel,
-                    competitor_panel=target_competitor,
+                    your_panel=comparison_bundle["your_panel_set"],
+                    competitor_panel=competitor_profile,
                     comparison_pair=comparison_pair,
                     your_guideline_coverage=comparison_bundle["your_guideline_coverage"],
                     competitor_guideline_coverage=competitor_bundle,
                     disease_filter=disease_filter,
                     market_accounts=selected_accounts,
                     stakeholders=selected_stakeholders,
+                    strategist_note=strategist_note,
                 )
                 strategy_payload = strategy_result["response_json"]
                 strategy_record = StrategyReport.objects.create(
-                    your_panel=your_panel,
-                    competitor_panel=target_competitor,
+                    your_panel=primary_your_panel,
+                    competitor_panel=competitor_panels[0],
                     market_account=primary_account,
                     title=strategy_payload.get("title", "").strip(),
                     disease_focus=disease_filter,
@@ -992,9 +1069,30 @@ def panel_compare_result(request):
                         "recommended_next_steps": strategy_payload.get("recommended_next_steps", []),
                         "raw_strategy_payload": strategy_payload,
                         "compare_query": {
-                            "your_panel": your_panel.pk,
+                            "run": comparison_run.pk if comparison_run else None,
+                            "your_panels": your_panel_ids,
                             "competitors": competitor_ids,
                         },
+                        "your_panels": [
+                            {
+                                "id": panel.pk,
+                                "name": panel.name,
+                                "company": panel.company.name,
+                                "sample_type": panel.get_sample_type_display(),
+                            }
+                            for panel in your_panels
+                        ],
+                        "competitor_panels": [
+                            {
+                                "id": panel.pk,
+                                "name": panel.name,
+                                "company": panel.company.name,
+                                "sample_type": panel.get_sample_type_display(),
+                            }
+                            for panel in competitor_panels
+                        ],
+                        "strategist_note": strategist_note,
+                        "strategy_scope": strategy_scope,
                     },
                 )
                 LLMGenerationLog.objects.create(
@@ -1013,13 +1111,14 @@ def panel_compare_result(request):
                 logger.info(
                     "Strategy report saved report_id=%s your_panel=%s competitor_panel=%s",
                     strategy_record.pk,
-                    your_panel.name,
-                    target_competitor.name,
+                    comparison_bundle["your_panel_set"]["name"],
+                    competitor_label,
                 )
-                messages.success(request, f"Strategy draft generated for {target_competitor.name}.")
+                messages.success(request, f"Strategy draft generated for {competitor_label}.")
                 strategy_outputs.append(
                     {
-                        "competitor_panel": target_competitor,
+                        "competitor_panel": target_competitor or competitor_panels[0],
+                        "competitor_label": competitor_label,
                         "strategy_text": strategy_payload.get("executive_summary", ""),
                         "report_id": strategy_record.pk,
                         "title": strategy_record.title,
@@ -1028,15 +1127,15 @@ def panel_compare_result(request):
             except Exception as exc:
                 logger.exception(
                     "Strategy generation failed your_panel=%s competitor_panel=%s disease_filter=%s",
-                    your_panel.name,
-                    target_competitor.name,
+                    comparison_bundle["your_panel_set"]["name"],
+                    competitor_label,
                     disease_filter or "ALL",
                 )
-                messages.error(request, f"Strategy generation failed for {target_competitor.name}: {exc}")
+                messages.error(request, f"Strategy generation failed for {competitor_label}: {exc}")
 
     existing_strategy_reports = list(
         StrategyReport.objects.filter(
-            your_panel=your_panel,
+            your_panel__in=your_panels,
             competitor_panel__in=competitor_panels,
         )
         .select_related("competitor_panel")
@@ -1045,20 +1144,23 @@ def panel_compare_result(request):
 
     context = {
         "page_title": "Panel Comparison Results",
-        "your_panel": your_panel,
+        "comparison_run": comparison_run,
+        "your_panels": your_panels,
         "competitor_panels": competitor_panels,
         "grouped_competitors": grouped_competitors,
         "comparison_bundle": comparison_bundle,
         "market_accounts": market_accounts,
         "filters": {
             "disease": disease_filter,
-            "your_panel": your_panel.pk,
+            "run": comparison_run.pk if comparison_run else "",
+            "your_panels": _serialize_panel_ids(your_panels),
             "competitors": _serialize_competitor_ids(competitor_panels),
         },
         "disease_choices": disease_choices,
         "strategy_outputs": strategy_outputs,
         "existing_strategy_reports": existing_strategy_reports,
         "selected_market_account_ids": selected_market_account_ids,
+        "strategist_note": strategist_note,
     }
     return render(request, "medstratix/panel_compare_result.html", context)
 

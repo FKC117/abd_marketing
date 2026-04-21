@@ -33,6 +33,53 @@ def _panel_gene_symbols(panel: Panel) -> set[str]:
     }
 
 
+def _panel_set_profile(panels: list[Panel]) -> dict:
+    sample_types = {panel.sample_type for panel in panels if panel.sample_type}
+    prices = [panel.price for panel in panels if panel.price is not None]
+    tats = [panel.tat for panel in panels if panel.tat]
+    gene_symbols = set()
+    for panel in panels:
+        gene_symbols.update(_panel_gene_symbols(panel))
+
+    if len(sample_types) == 1 and sample_types:
+        sample_type = next(iter(sample_types))
+        sample_type_label = panels[0].get_sample_type_display()
+    else:
+        sample_type = "mixed"
+        sample_type_label = "Mixed sample types"
+
+    return {
+        "panels": panels,
+        "panel_ids": [panel.pk for panel in panels],
+        "panel_count": len(panels),
+        "name": panels[0].name if len(panels) == 1 else f"{len(panels)} selected panels",
+        "company_name": panels[0].company.name if len({panel.company.name for panel in panels}) == 1 else "Multiple accounts",
+        "sample_type": sample_type,
+        "sample_type_label": sample_type_label,
+        "sample_types": sample_types,
+        "price_total": sum(prices, Decimal("0.00")) if prices else None,
+        "price_label": (
+            str(sum(prices, Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            if prices and len(prices) == len(panels)
+            else "Mixed / partial"
+        ),
+        "tat_label": tats[0] if len(set(tats)) == 1 and tats else "Mixed / varies" if tats else "N/A",
+        "gene_symbols": gene_symbols,
+        "supports_dna_ngs": any(panel.supports_dna_ngs for panel in panels),
+        "supports_rna_ngs": any(panel.supports_rna_ngs for panel in panels),
+        "supports_fusions": any(panel.supports_fusions for panel in panels),
+        "supports_cnv": any(panel.supports_cnv for panel in panels),
+        "supports_msi": any(panel.supports_msi for panel in panels),
+        "supports_tmb": any(panel.supports_tmb for panel in panels),
+        "supports_ihc": any(panel.supports_ihc for panel in panels),
+        "supports_fish": any(panel.supports_fish for panel in panels),
+    }
+
+
+def build_panel_set_profile(panels: list[Panel]) -> dict:
+    return _panel_set_profile(panels)
+
+
 def _expanded_panel_symbols(panel_symbols: set[str]) -> set[str]:
     expanded = set(panel_symbols)
     reverse_lookup = {}
@@ -117,66 +164,66 @@ def _definition_method_types(definition: BiomarkerDefinition) -> set[str]:
     }
 
 
-def _assay_fit_for_definition(panel: Panel, definition: BiomarkerDefinition) -> tuple[str, str]:
+def _assay_fit_for_definition(panel_profile: dict, definition: BiomarkerDefinition) -> tuple[str, str]:
     method_types = _definition_method_types(definition)
     alteration_family = definition.alteration_family
-    sample_type = panel.sample_type
+    sample_types = panel_profile.get("sample_types", set())
+    has_tissue = SampleType.TISSUE in sample_types
+    has_plasma = SampleType.PLASMA in sample_types
 
     if alteration_family == AlterationFamily.FUSION:
-        if panel.supports_fusions and (panel.supports_rna_ngs or sample_type == SampleType.TISSUE):
+        if panel_profile.get("supports_fusions") and (panel_profile.get("supports_rna_ngs") or has_tissue):
             return "Strong", "Panel explicitly supports fusion detection and has an RNA/tissue-compatible profile."
-        if panel.supports_fusions:
+        if panel_profile.get("supports_fusions"):
             return "Partial", "Panel flags fusion support, but the assay context is not ideal for strong fusion confidence."
         if TestingMethodType.RNA_NGS in method_types:
             return (
-                "Strong"
-                if sample_type == SampleType.TISSUE
-                else "Partial",
+                "Strong" if has_tissue else "Partial",
                 "Fusion-directed biomarker; RNA NGS support is the preferred fit and plasma can underperform.",
             )
         return "Partial", "Fusion biomarker present, but explicit RNA support is not captured in the panel data."
 
     if alteration_family == AlterationFamily.EXON_SKIPPING:
-        if sample_type == SampleType.TISSUE:
+        if has_tissue:
             return "Strong", "Exon-skipping event is more credible in tissue-focused profiling."
         return "Partial", "Exon-skipping event may be incompletely characterized in plasma-only workflows."
 
     if alteration_family in (AlterationFamily.AMPLIFICATION, AlterationFamily.COPY_NUMBER_GAIN):
-        if panel.supports_cnv:
+        if panel_profile.get("supports_cnv"):
             return "Strong", "Panel explicitly supports CNV / amplification detection."
         if TestingMethodType.IHC in method_types or TestingMethodType.FISH in method_types:
             return "Strong", "Copy-number / amplification biomarker aligns with IHC/FISH-linked detection in the guideline."
         return "Partial", "Biomarker is present, but the guideline suggests copy-number or expression confirmation methods."
 
     if alteration_family == AlterationFamily.PROTEIN_OVEREXPRESSION:
-        if panel.supports_ihc:
+        if panel_profile.get("supports_ihc"):
             return "Strong", "Panel explicitly includes IHC-style companion support for protein-expression biomarkers."
         if TestingMethodType.IHC in method_types:
             return "Strong", "Protein-expression biomarker aligns with IHC-focused detection."
         return "Partial", "Protein-expression marker is present, but explicit IHC-style support is not evident."
 
     if definition.gene.symbol == "MSI":
-        if panel.supports_msi:
+        if panel_profile.get("supports_msi"):
             return "Strong", "Panel explicitly supports MSI assessment."
         return "Partial", "Panel includes the biomarker gene context, but MSI support is not explicitly flagged."
 
     if definition.gene.symbol == "TMB":
-        if panel.supports_tmb:
+        if panel_profile.get("supports_tmb"):
             return "Strong", "Panel explicitly supports TMB estimation."
         return "Partial", "Panel includes the biomarker context, but TMB support is not explicitly flagged."
 
-    if TestingMethodType.PLASMA in method_types and sample_type == SampleType.PLASMA:
+    if TestingMethodType.PLASMA in method_types and has_plasma:
         return "Strong", "Panel sample type aligns with plasma-based guideline testing."
 
-    if sample_type == SampleType.PLASMA and TestingMethodType.TISSUE in method_types:
+    if has_plasma and not has_tissue and TestingMethodType.TISSUE in method_types:
         return "Partial", "Panel is plasma-based while the guideline leans toward tissue testing."
 
     return "Strong", "Panel sample type and biomarker event class are broadly aligned."
 
 
 @transaction.atomic
-def build_guideline_coverage(panel: Panel) -> dict:
-    panel_symbols = _panel_gene_symbols(panel)
+def build_guideline_coverage(panel_profile: dict) -> dict:
+    panel_symbols = panel_profile["gene_symbols"]
     expanded_panel_symbols = _expanded_panel_symbols(panel_symbols)
     guidelines = list(
         GuidelineDocument.objects.filter(status=GuidelineStatus.REVIEWED)
@@ -204,7 +251,7 @@ def build_guideline_coverage(panel: Panel) -> dict:
             match_status = "Gap"
 
         match_record, _ = PanelGuidelineMatch.objects.update_or_create(
-            panel=panel,
+            panel=panel_profile["panels"][0],
             guideline_document=guideline,
             defaults={
                 "cancer_type": guideline.cancer_type,
@@ -213,7 +260,9 @@ def build_guideline_coverage(panel: Panel) -> dict:
                 "missing_actionable_genes_count": len(missing_symbols),
                 "coverage_percent": coverage_percent,
                 "summary_json": {
-                    "sample_type": panel.sample_type,
+                    "sample_type": panel_profile["sample_type_label"],
+                    "panel_ids": panel_profile["panel_ids"],
+                    "panel_count": panel_profile["panel_count"],
                     "reference_gene_count": len(guideline_symbols),
                     "matched_symbols": matched_symbols,
                     "missing_symbols": missing_symbols[:25],
@@ -226,7 +275,7 @@ def build_guideline_coverage(panel: Panel) -> dict:
             definition = reference["definition_by_symbol"].get(symbol)
             if not definition:
                 continue
-            assay_fit, assay_note = _assay_fit_for_definition(panel, definition)
+            assay_fit, assay_note = _assay_fit_for_definition(panel_profile, definition)
             PanelGuidelineGeneMatch.objects.create(
                 panel_guideline_match=match_record,
                 gene=definition.gene,
@@ -295,7 +344,8 @@ def build_guideline_coverage(panel: Panel) -> dict:
     )
 
     return {
-        "panel": panel,
+        "panel": panel_profile["panels"][0],
+        "panel_set": panel_profile,
         "average_coverage": _percent(sum(item["matched_count"] for item in results), sum(item["reference_count"] for item in results)) if results else Decimal("0.00"),
         "guideline_count": len(results),
         "covered_guidelines": covered_guidelines,
@@ -307,9 +357,9 @@ def build_guideline_coverage(panel: Panel) -> dict:
 
 
 @transaction.atomic
-def compare_panel_pair(your_panel: Panel, competitor_panel: Panel) -> dict:
-    your_symbols = _panel_gene_symbols(your_panel)
-    competitor_symbols = _panel_gene_symbols(competitor_panel)
+def compare_panel_profiles(your_profile: dict, competitor_profile: dict) -> dict:
+    your_symbols = your_profile["gene_symbols"]
+    competitor_symbols = competitor_profile["gene_symbols"]
 
     overlap = sorted(your_symbols & competitor_symbols)
     your_only = sorted(your_symbols - competitor_symbols)
@@ -318,34 +368,37 @@ def compare_panel_pair(your_panel: Panel, competitor_panel: Panel) -> dict:
     competitor_coverage = _percent(len(overlap), len(competitor_symbols))
 
     price_delta = None
-    if your_panel.price is not None and competitor_panel.price is not None:
-        price_delta = (your_panel.price - competitor_panel.price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    competitor_price = competitor_profile.get("price_total")
+    if your_profile.get("price_total") is not None and competitor_price is not None:
+        price_delta = (your_profile["price_total"] - competitor_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     report_payload = {
         "overlap_symbols": overlap,
         "your_only_symbols": your_only[:30],
         "competitor_only_symbols": competitor_only[:30],
-        "sample_type_match": your_panel.sample_type == competitor_panel.sample_type,
-        "your_sample_type": your_panel.sample_type,
-        "competitor_sample_type": competitor_panel.sample_type,
+        "sample_type_match": bool(competitor_profile.get("sample_types", set()) & your_profile.get("sample_types", set())),
+        "your_sample_type": your_profile.get("sample_type"),
+        "competitor_sample_type": competitor_profile.get("sample_type"),
         "your_coverage_percent": str(your_coverage),
         "competitor_coverage_percent": str(competitor_coverage),
         "price_delta_bdt": str(price_delta) if price_delta is not None else "",
     }
-    ComparisonReport.objects.update_or_create(
-        panel_a=your_panel,
-        panel_b=competitor_panel,
-        defaults={
-            "overlap_count": len(overlap),
-            "unique_a_count": len(your_only),
-            "unique_b_count": len(competitor_only),
-            "coverage_percent": your_coverage,
-            "report_json": report_payload,
-        },
-    )
+    if your_profile["panel_count"] == 1 and competitor_profile["panel_count"] == 1:
+        ComparisonReport.objects.update_or_create(
+            panel_a=your_profile["panels"][0],
+            panel_b=competitor_profile["panels"][0],
+            defaults={
+                "overlap_count": len(overlap),
+                "unique_a_count": len(your_only),
+                "unique_b_count": len(competitor_only),
+                "coverage_percent": your_coverage,
+                "report_json": report_payload,
+            },
+        )
 
     return {
-        "competitor_panel": competitor_panel,
+        "competitor_panel": competitor_profile["panels"][0] if competitor_profile["panels"] else None,
+        "competitor_panel_set": competitor_profile,
         "overlap_count": len(overlap),
         "your_only_count": len(your_only),
         "competitor_only_count": len(competitor_only),
@@ -354,22 +407,27 @@ def compare_panel_pair(your_panel: Panel, competitor_panel: Panel) -> dict:
         "competitor_only_preview": competitor_only[:12],
         "your_coverage_percent": your_coverage,
         "competitor_coverage_percent": competitor_coverage,
-        "sample_type_match": your_panel.sample_type == competitor_panel.sample_type,
+        "sample_type_match": bool(competitor_profile.get("sample_types", set()) & your_profile.get("sample_types", set())),
         "price_delta": price_delta,
     }
 
 
-def build_comparison_bundle(your_panel: Panel, competitor_panels: list[Panel]) -> dict:
-    your_guideline_coverage = build_guideline_coverage(your_panel)
+def compare_panel_pair(your_profile: dict, competitor_panel: Panel) -> dict:
+    return compare_panel_profiles(your_profile, _panel_set_profile([competitor_panel]))
+
+
+def build_comparison_bundle(your_panels: list[Panel], competitor_panels: list[Panel]) -> dict:
+    your_panel_set = _panel_set_profile(your_panels)
+    your_guideline_coverage = build_guideline_coverage(your_panel_set)
     competitor_comparisons = []
     competitor_guideline_coverages = []
 
     for competitor_panel in competitor_panels:
-        competitor_comparisons.append(compare_panel_pair(your_panel, competitor_panel))
-        competitor_guideline_coverages.append(build_guideline_coverage(competitor_panel))
+        competitor_comparisons.append(compare_panel_pair(your_panel_set, competitor_panel))
+        competitor_guideline_coverages.append(build_guideline_coverage(_panel_set_profile([competitor_panel])))
 
     return {
-        "your_panel": your_panel,
+        "your_panel_set": your_panel_set,
         "your_guideline_coverage": your_guideline_coverage,
         "competitor_comparisons": competitor_comparisons,
         "competitor_guideline_coverages": competitor_guideline_coverages,

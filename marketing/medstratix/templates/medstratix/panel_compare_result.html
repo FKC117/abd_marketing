@@ -19,17 +19,22 @@
         <div class="workspace-panel__top">
             <div class="section-heading">
                 <span class="eyebrow">Selected Panels</span>
-                <h2>{{ your_panel.name }} vs {{ competitor_panels|length }} competitor panel{{ competitor_panels|length|pluralize }}.</h2>
+                <h2>{{ comparison_bundle.your_panel_set.name }} vs {{ competitor_panels|length }} competitor panel{{ competitor_panels|length|pluralize }}.</h2>
             </div>
             <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_setup' %}">Change Selection</a>
         </div>
         <div class="compare-summary-grid">
             <article class="mini-item mini-item--catalog">
-                <strong>Your Panel</strong>
-                <span>{{ your_panel.company.name }}</span>
-                <span>{{ your_panel.get_sample_type_display }} sample</span>
-                <span>{% if your_panel.price %}{{ your_panel.price }} BDT{% else %}Price not set{% endif %}</span>
-                <span>TAT: {{ your_panel.tat|default:"N/A" }}</span>
+                <strong>Your Panel Set</strong>
+                <span>{{ comparison_bundle.your_panel_set.panel_count }} selected panel{{ comparison_bundle.your_panel_set.panel_count|pluralize }}</span>
+                <span>{{ comparison_bundle.your_panel_set.sample_type_label }}</span>
+                <span>Price: {{ comparison_bundle.your_panel_set.price_label }}</span>
+                <span>TAT: {{ comparison_bundle.your_panel_set.tat_label }}</span>
+                <div class="gene-chip-row">
+                    {% for panel in your_panels %}
+                        <span class="gene-chip">{{ panel.name }}</span>
+                    {% endfor %}
+                </div>
             </article>
             <article class="mini-item mini-item--catalog">
                 <strong>Competitor Set</strong>
@@ -48,7 +53,10 @@
             </div>
         </div>
         <form method="get" class="filter-bar filter-bar--dashboard">
-            <input type="hidden" name="your_panel" value="{{ filters.your_panel }}">
+            {% if filters.run %}
+                <input type="hidden" name="run" value="{{ filters.run }}">
+            {% endif %}
+            <input type="hidden" name="your_panels" value="{{ filters.your_panels }}">
             <input type="hidden" name="competitors" value="{{ filters.competitors }}">
             <div class="filter-bar__group filter-bar__group--wide">
                 <label for="compare-disease">Cancer Type</label>
@@ -61,7 +69,37 @@
             </div>
             <div class="filter-bar__actions">
                 <button class="button button-primary workspace-button" type="submit">Apply Filter</button>
-                <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_result' %}?your_panel={{ filters.your_panel }}&competitors={{ filters.competitors }}">Reset</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_result' %}?{% if filters.run %}run={{ filters.run }}&{% endif %}your_panels={{ filters.your_panels }}&competitors={{ filters.competitors }}">Reset</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="workspace-panel workspace-panel--library workspace-panel--compact">
+        <div class="workspace-panel__top">
+            <div class="section-heading">
+                <span class="eyebrow">Set Strategy</span>
+                <h2>Generate one strategic view against the full selected competitor set.</h2>
+            </div>
+        </div>
+        <form method="post" class="styled-form">
+            {% csrf_token %}
+            <input type="hidden" name="strategy_scope" value="set">
+            <div class="form-row">
+                <label for="market-account-set">Market Account Context</label>
+                <select id="market-account-set" class="form-control" name="market_account_ids" multiple size="5">
+                    {% for account in market_accounts %}
+                        <option value="{{ account.pk }}" {% if account.pk|stringformat:"s" in selected_market_account_ids %}selected{% endif %}>{{ account.name }}{% if account.city %} | {{ account.city }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <p class="form-help">Use Ctrl or Cmd to select multiple account contexts for one strategy draft.</p>
+            </div>
+            <div class="form-row">
+                <label for="strategist-note-set">Strategist Note</label>
+                <textarea id="strategist-note-set" class="form-control" name="strategist_note" rows="5" placeholder="Add a specific instruction to strengthen the strategy output. Example: Focus on NSCLC launch positioning in Dhaka private hospitals and prioritize evidence-led counterstrategy against competitor relationship-driven referrals.">{{ strategist_note }}</textarea>
+                <p class="form-help">This is your direct instruction to the LLM. Use it to push the output toward a more specific market plan.</p>
+            </div>
+            <div class="panel-editor__actions">
+                <button class="button button-primary workspace-button" type="submit">Generate Competitor Set Strategy</button>
             </div>
         </form>
     </section>
@@ -74,8 +112,8 @@
 
         <section class="dashboard-metrics compare-metric-grid">
             <article class="metric-card">
-                <span>Your Panel</span>
-                <strong>{{ comparison_bundle.your_panel.name }}</strong>
+                <span>Your Panel Set</span>
+                <strong>{{ comparison_bundle.your_panel_set.name }}</strong>
             </article>
             <article class="metric-card">
                 <span>Competitor Panels</span>
@@ -180,6 +218,11 @@
                             </select>
                             <p class="form-help">Use Ctrl or Cmd to select multiple account contexts for one strategy draft.</p>
                         </div>
+                        <div class="form-row">
+                            <label for="strategist-note-{{ result.competitor_panel.pk }}">Strategist Note</label>
+                            <textarea id="strategist-note-{{ result.competitor_panel.pk }}" class="form-control" name="strategist_note" rows="5" placeholder="Add a specific instruction to strengthen the strategy output.">{{ strategist_note }}</textarea>
+                            <p class="form-help">Use this to tell the LLM exactly what kind of plan emphasis you want.</p>
+                        </div>
                         <button class="button button-primary workspace-button" type="submit">Generate Strategy Draft</button>
                     </form>
                 </article>
@@ -197,8 +240,8 @@
                 <div class="compare-company-list">
                     {% for item in strategy_outputs %}
                         <div class="compare-company-card">
-                            <strong>{{ item.title|default:item.competitor_panel.name }}</strong>
-                            <span class="table-subtle">{{ item.competitor_panel.company.name }} - {{ item.competitor_panel.name }}</span>
+                            <strong>{{ item.title|default:item.competitor_label|default:item.competitor_panel.name }}</strong>
+                            <span class="table-subtle">{{ item.competitor_label|default:item.competitor_panel.name }}</span>
                             <p class="strategy-text">{{ item.strategy_text|linebreaksbr }}</p>
                             <a class="button button-secondary workspace-button" href="{% url 'medstratix:strategy_detail' item.report_id %}">Open Full Strategy</a>
                         </div>

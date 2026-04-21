@@ -91,6 +91,30 @@ def build_strategy_docx(report, latest_log):
 
     document.add_paragraph("")
 
+    your_panels = report.report_json.get("your_panels", [])
+    competitor_panels = report.report_json.get("competitor_panels", [])
+    if your_panels or competitor_panels:
+        document.add_heading("Panel Sets", level=1)
+        if your_panels:
+            document.add_heading("Your Panel Set", level=2)
+            for panel in your_panels:
+                document.add_paragraph(
+                    f"{panel.get('company', 'Unknown')} | {panel.get('name', 'Unknown')} | {panel.get('sample_type', 'N/A')}",
+                    style="List Bullet",
+                )
+        if competitor_panels:
+            document.add_heading("Competitor Panel Set", level=2)
+            for panel in competitor_panels:
+                document.add_paragraph(
+                    f"{panel.get('company', 'Unknown')} | {panel.get('name', 'Unknown')} | {panel.get('sample_type', 'N/A')}",
+                    style="List Bullet",
+                )
+
+    strategist_note = report.report_json.get("strategist_note", "")
+    if strategist_note:
+        document.add_heading("Strategist Note", level=1)
+        document.add_paragraph(strategist_note)
+
     if report.report_json.get("market_accounts"):
         document.add_heading("Market Context", level=1)
         for account in report.report_json.get("market_accounts", []):

@@ -43,6 +43,45 @@
         </article>
     </section>
 
+    {% if report.report_json.your_panels or report.report_json.competitor_panels %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Panel Sets</span>
+                <h2>Saved comparison-set context behind this strategy.</h2>
+            </div>
+            {% if report.report_json.your_panels %}
+                <div class="workspace-card__profile">
+                    <strong>Your Panel Set</strong>
+                    <div class="gene-chip-row">
+                        {% for panel in report.report_json.your_panels %}
+                            <span class="gene-chip">{{ panel.company }} | {{ panel.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            {% if report.report_json.competitor_panels %}
+                <div class="workspace-card__profile">
+                    <strong>Competitor Panel Set</strong>
+                    <div class="gene-chip-row">
+                        {% for panel in report.report_json.competitor_panels %}
+                            <span class="gene-chip gene-chip--variant">{{ panel.company }} | {{ panel.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+
+    {% if report.report_json.strategist_note %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Strategist Note</span>
+                <h2>Your direct instruction that shaped this strategy run.</h2>
+            </div>
+            <p class="strategy-text">{{ report.report_json.strategist_note|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
     {% if report.market_account or report.report_json.market_accounts %}
         <section class="workspace-panel detail-panel">
             <div class="section-heading">

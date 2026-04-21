@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.utils.text import slugify
 
@@ -233,6 +234,27 @@ class ComparisonReport(TimeStampedModel):
 
     def __str__(self):
         return f"Comparison: {self.panel_a.name} vs {self.panel_b.name}"
+
+
+class ComparisonRun(TimeStampedModel):
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="comparison_runs",
+    )
+    name = models.CharField(max_length=255, blank=True)
+    your_panels = models.ManyToManyField(Panel, related_name="comparison_runs_as_yours")
+    competitor_panels = models.ManyToManyField(Panel, related_name="comparison_runs_as_competitors")
+    disease_filter = models.CharField(max_length=255, blank=True)
+    summary_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name or f"Comparison Run {self.pk}"
 
 
 class GuidelineDocument(TimeStampedModel):

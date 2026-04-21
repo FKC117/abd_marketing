@@ -4,6 +4,7 @@ from .models import (
     BiomarkerDefinition,
     BiomarkerVariantRule,
     Company,
+    ComparisonRun,
     ComparisonReport,
     Gene,
     GuidelineDocument,
@@ -85,6 +86,13 @@ class ComparisonReportAdmin(admin.ModelAdmin):
     list_display = ["panel_a", "panel_b", "overlap_count", "unique_a_count", "unique_b_count", "created_at"]
     search_fields = ["panel_a__name", "panel_b__name"]
     autocomplete_fields = ["panel_a", "panel_b"]
+
+
+@admin.register(ComparisonRun)
+class ComparisonRunAdmin(admin.ModelAdmin):
+    list_display = ["name", "created_by", "disease_filter", "created_at"]
+    search_fields = ["name", "created_by__username"]
+    autocomplete_fields = ["created_by", "your_panels", "competitor_panels"]
 
 
 @admin.register(GuidelineDocument)

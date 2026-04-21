@@ -156,7 +156,10 @@ class PanelUploadForm(forms.Form):
 
 
 class PanelComparisonSelectForm(forms.Form):
-    your_panel = forms.ModelChoiceField(queryset=Panel.objects.none(), empty_label="Select your panel")
+    your_panels = forms.ModelMultipleChoiceField(
+        queryset=Panel.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+    )
     competitor_panels = forms.ModelMultipleChoiceField(
         queryset=Panel.objects.none(),
         widget=forms.CheckboxSelectMultiple,
@@ -164,9 +167,8 @@ class PanelComparisonSelectForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["your_panel"].queryset = Panel.objects.filter(company__type=CompanyType.YOURS).select_related("company")
+        self.fields["your_panels"].queryset = Panel.objects.filter(company__type=CompanyType.YOURS).select_related("company")
         self.fields["competitor_panels"].queryset = Panel.objects.filter(company__type=CompanyType.COMPETITOR).select_related("company")
-        apply_widget_style({"your_panel": self.fields["your_panel"]})
 
 
 class MarketAccountForm(forms.ModelForm):

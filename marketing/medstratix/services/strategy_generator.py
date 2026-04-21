@@ -10,6 +10,28 @@ from google import genai
 logger = logging.getLogger("medstratix.strategy")
 
 
+def _panel_context(panel_like) -> dict:
+    if isinstance(panel_like, dict):
+        return {
+            "name": panel_like.get("name", ""),
+            "company_name": panel_like.get("company_name", ""),
+            "sample_type_label": panel_like.get("sample_type_label", ""),
+            "price_label": panel_like.get("price_label", "N/A"),
+            "tat_label": panel_like.get("tat_label", "N/A"),
+            "panel_count": panel_like.get("panel_count", 1),
+            "panel_names": [panel.name for panel in panel_like.get("panels", [])],
+        }
+    return {
+        "name": panel_like.name,
+        "company_name": panel_like.company.name,
+        "sample_type_label": panel_like.get_sample_type_display(),
+        "price_label": str(panel_like.price or "N/A"),
+        "tat_label": panel_like.tat or "N/A",
+        "panel_count": 1,
+        "panel_names": [panel_like.name],
+    }
+
+
 def _response_text(response) -> str:
     text = getattr(response, "text", None)
     if text:
@@ -238,6 +260,7 @@ def generate_structured_strategy(
     disease_filter: str = "",
     market_accounts=None,
     stakeholders=None,
+    strategist_note: str = "",
 ) -> dict:
     api_key = os.getenv("GOOGLE_API_KEY", "").strip()
     if not api_key:
@@ -245,10 +268,13 @@ def generate_structured_strategy(
         raise ValueError("GOOGLE_API_KEY is not configured in the environment.")
 
     model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    your_panel_context = _panel_context(your_panel)
+    competitor_panel_context = _panel_context(competitor_panel)
     compact_comparison_pair = _compact_pair_summary(comparison_pair)
     compact_your_guideline_coverage = _compact_guideline_coverage(your_guideline_coverage)
     compact_competitor_guideline_coverage = _compact_guideline_coverage(competitor_guideline_coverage)
     market_context = _market_accounts_context(market_accounts or [], stakeholders or [])
+    strategist_note = (strategist_note or "").strip()
 
     prompt = f"""
 You are helping build a strategic oncology panel intelligence report for MedStratix.
@@ -289,21 +315,26 @@ Treat corruption pressure and referral distortion as a market obstacle that must
 Do not recommend bribery, cash inducements, kickbacks, or any illegal/unethical doctor payment scheme.
 Recommend compliant alternatives such as evidence, service quality, turnaround reliability, institutional contracting, education, conference support when compliant, and account strategy.
 
+Additional strategist instruction from the user:
+{strategist_note or "No extra strategist note supplied."}
+
 Disease focus: {disease_filter or "All reviewed NCCN diseases"}
 
 Your panel:
-- Name: {your_panel.name}
-- Company: {your_panel.company.name}
-- Sample type: {your_panel.get_sample_type_display()}
-- Price BDT: {your_panel.price or "N/A"}
-- TAT: {your_panel.tat or "N/A"}
+- Name: {your_panel_context["name"]}
+- Company: {your_panel_context["company_name"]}
+- Panel count: {your_panel_context["panel_count"]}
+- Panel names: {", ".join(your_panel_context["panel_names"])}
+- Sample type: {your_panel_context["sample_type_label"]}
+- Price BDT: {your_panel_context["price_label"]}
+- TAT: {your_panel_context["tat_label"]}
 
 Competitor panel:
-- Name: {competitor_panel.name}
-- Company: {competitor_panel.company.name}
-- Sample type: {competitor_panel.get_sample_type_display()}
-- Price BDT: {competitor_panel.price or "N/A"}
-- TAT: {competitor_panel.tat or "N/A"}
+- Name: {competitor_panel_context["name"]}
+- Company: {competitor_panel_context["company_name"]}
+- Sample type: {competitor_panel_context["sample_type_label"]}
+- Price BDT: {competitor_panel_context["price_label"]}
+- TAT: {competitor_panel_context["tat_label"]}
 
 Panel-to-panel comparison:
 {json.dumps(_json_safe(compact_comparison_pair), indent=2)}
@@ -319,8 +350,8 @@ Competitor NCCN coverage:
 
     logger.info(
         "Preparing strategy generation your_panel=%s competitor_panel=%s disease_filter=%s market_accounts=%s stakeholders=%s",
-        your_panel.name,
-        competitor_panel.name,
+        your_panel_context["name"],
+        competitor_panel_context["name"],
         disease_filter or "ALL",
         len(market_accounts or []),
         len(stakeholders or []),
@@ -333,8 +364,8 @@ Competitor NCCN coverage:
     except ValueError as exc:
         logger.exception(
             "Gemini returned non-JSON output your_panel=%s competitor_panel=%s model=%s",
-            your_panel.name,
-            competitor_panel.name,
+            your_panel_context["name"],
+            competitor_panel_context["name"],
             model_name,
         )
         raise ValueError(f"Gemini did not return valid JSON: {exc}") from exc
@@ -342,8 +373,8 @@ Competitor NCCN coverage:
     usage = _usage_metadata(response)
     logger.info(
         "Strategy generation succeeded your_panel=%s competitor_panel=%s model=%s prompt_tokens=%s response_tokens=%s total_tokens=%s",
-        your_panel.name,
-        competitor_panel.name,
+        your_panel_context["name"],
+        competitor_panel_context["name"],
         model_name,
         usage["prompt_tokens"],
         usage["response_tokens"],

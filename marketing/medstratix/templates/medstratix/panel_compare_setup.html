@@ -7,7 +7,7 @@
     <section class="workspace-stage workspace-stage--dashboard">
         <div class="workspace-stage__hero">
             <span class="eyebrow">Comparison Setup</span>
-            <h1 class="workspace-title">Choose one of your panels and stack it against multiple competitor panels.</h1>
+            <h1 class="workspace-title">Choose multiple of your panels and stack that set against multiple competitor panels.</h1>
             <p class="lead">
                 This screen now only handles selection. Once you submit, we take you to a full-width result page with
                 disease filtering, NCCN coverage analysis, assay-fit scoring, and strategy generation.
@@ -25,9 +25,11 @@
                 {% csrf_token %}
                 <div class="compare-form-grid">
                     <div class="form-row form-row--full">
-                        <label for="{{ form.your_panel.id_for_label }}">{{ form.your_panel.label }}</label>
-                        {{ form.your_panel }}
-                        {% for error in form.your_panel.errors %}
+                        <label>{{ form.your_panels.label }}</label>
+                        <div class="checkbox-grid">
+                            {{ form.your_panels }}
+                        </div>
+                        {% for error in form.your_panels.errors %}
                             <p class="form-error">{{ error }}</p>
                         {% endfor %}
                     </div>
