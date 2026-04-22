@@ -39,10 +39,10 @@
                         <label for="{{ form.chronology_mode.id_for_label }}">{{ form.chronology_mode.label }}</label>
                         {{ form.chronology_mode }}
                     </div>
-                    <div class="form-row form-row--full">
+                    <div class="form-row form-row--full final-order-raw-field" id="custom-order-raw-field">
                         <label for="{{ form.custom_plan_order.id_for_label }}">{{ form.custom_plan_order.label }}</label>
                         {{ form.custom_plan_order }}
-                        <p class="field-hint">{{ form.custom_plan_order.help_text }}</p>
+                        <p class="field-hint">This raw field stays synced automatically from the visual order below.</p>
                     </div>
                     <div class="form-row form-row--full">
                         <label for="{{ form.strategist_note.id_for_label }}">{{ form.strategist_note.label }}</label>
@@ -67,11 +67,12 @@
                     <div class="marketing-selection-card__head">
                         <div>
                             <h3>Custom Plan Order</h3>
-                            <p>Use the controls below when `Custom ID Order` is selected.</p>
+                            <p>Drag and drop the selected plans into the exact chronology you want when `Custom ID Order` is selected.</p>
                         </div>
+                        <span class="final-order-counter" id="custom-order-counter">0 selected</span>
                     </div>
                     <div class="marketing-selection-card__body">
-                        <div id="custom-order-list" class="compare-company-list"></div>
+                        <div id="custom-order-list" class="compare-company-list custom-order-list"></div>
                     </div>
                 </div>
             </section>
@@ -93,6 +94,8 @@
         const selectedPlanInputs = Array.from(document.querySelectorAll("input[name='selected_plans']"));
         const customOrderCard = document.getElementById("custom-order-card");
         const customOrderList = document.getElementById("custom-order-list");
+        const customOrderCounter = document.getElementById("custom-order-counter");
+        const customOrderRawField = document.getElementById("custom-order-raw-field");
         if (!chronology || !customOrderInput || !selectedPlanInputs.length || !customOrderCard || !customOrderList) return;
 
         let order = [];
@@ -126,42 +129,80 @@
                 const item = lookup[id];
                 if (!item) return;
                 const card = document.createElement("div");
-                card.className = "compare-company-card";
+                card.className = "compare-company-card custom-order-card-item";
+                card.draggable = true;
+                card.dataset.planId = id;
+                const handle = document.createElement("span");
+                handle.className = "custom-order-card-item__handle";
+                handle.textContent = "Drag";
+                card.appendChild(handle);
                 const title = document.createElement("strong");
                 title.textContent = `${index + 1}. ${item.text}`;
                 card.appendChild(title);
 
-                const actions = document.createElement("div");
-                actions.className = "hero-actions";
+                const meta = document.createElement("p");
+                meta.textContent = `Plan ID: ${id} | Drag to reorder`;
+                card.appendChild(meta);
 
-                const up = document.createElement("button");
-                up.type = "button";
-                up.className = "button button-secondary workspace-button";
-                up.textContent = "Up";
-                up.disabled = index === 0;
-                up.addEventListener("click", () => {
-                    [order[index - 1], order[index]] = [order[index], order[index - 1]];
+                card.addEventListener("dragstart", (event) => {
+                    card.classList.add("custom-order-card-item--dragging");
+                    event.dataTransfer.setData("text/plain", id);
+                });
+                card.addEventListener("dragend", () => {
+                    card.classList.remove("custom-order-card-item--dragging");
+                });
+                card.addEventListener("dragover", (event) => {
+                    event.preventDefault();
+                    card.classList.add("custom-order-card-item--over");
+                });
+                card.addEventListener("dragleave", () => {
+                    card.classList.remove("custom-order-card-item--over");
+                });
+                card.addEventListener("drop", (event) => {
+                    event.preventDefault();
+                    card.classList.remove("custom-order-card-item--over");
+                    const draggedId = event.dataTransfer.getData("text/plain");
+                    const targetId = card.dataset.planId;
+                    if (!draggedId || !targetId || draggedId === targetId) return;
+                    const draggedIndex = order.indexOf(draggedId);
+                    const targetIndex = order.indexOf(targetId);
+                    if (draggedIndex === -1 || targetIndex === -1) return;
+                    order.splice(draggedIndex, 1);
+                    order.splice(targetIndex, 0, draggedId);
                     renderOrder();
                 });
-
-                const down = document.createElement("button");
-                down.type = "button";
-                down.className = "button button-secondary workspace-button";
-                down.textContent = "Down";
-                down.disabled = index === order.length - 1;
-                down.addEventListener("click", () => {
-                    [order[index + 1], order[index]] = [order[index], order[index + 1]];
-                    renderOrder();
-                });
-
-                actions.appendChild(up);
-                actions.appendChild(down);
-                card.appendChild(actions);
                 customOrderList.appendChild(card);
             });
             customOrderInput.value = order.join(", ");
-            customOrderCard.style.display = chronology.value === "custom_ids" ? "block" : "none";
+            const isCustom = chronology.value === "custom_ids";
+            customOrderCard.style.display = isCustom ? "block" : "none";
+            if (customOrderRawField) {
+                customOrderRawField.style.display = isCustom ? "block" : "none";
+            }
+            if (customOrderCounter) {
+                customOrderCounter.textContent = `${selected.length} selected`;
+            }
+            if (!selected.length) {
+                customOrderList.innerHTML = '<div class="empty-state empty-state--compact"><h3>No plans selected yet.</h3><p>Select the plans you want to combine, then drag them into chronology.</p></div>';
+            }
         }
+
+        customOrderList.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            customOrderList.classList.add("custom-order-list--over");
+        });
+        customOrderList.addEventListener("dragleave", () => {
+            customOrderList.classList.remove("custom-order-list--over");
+        });
+        customOrderList.addEventListener("drop", (event) => {
+            event.preventDefault();
+            customOrderList.classList.remove("custom-order-list--over");
+            const draggedId = event.dataTransfer.getData("text/plain");
+            if (!draggedId || !order.includes(draggedId)) return;
+            order = order.filter((id) => id !== draggedId);
+            order.push(draggedId);
+            renderOrder();
+        });
 
         const existing = (customOrderInput.value || "").split(",").map((value) => value.trim()).filter(Boolean);
         if (existing.length) order = existing;

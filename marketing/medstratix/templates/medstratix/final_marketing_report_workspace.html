@@ -38,6 +38,7 @@
                     </div>
                     <div class="workspace-card__actions">
                         <a class="button button-primary workspace-button" href="{% url 'medstratix:final_marketing_report_detail' report.pk %}">Open Report</a>
+                        <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'xlsx' %}">Export Excel</a>
                     </div>
                 </article>
             {% empty %}

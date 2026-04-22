@@ -8,10 +8,11 @@
         <div class="workspace-stage__hero">
             <span class="eyebrow">Final Marketing Report</span>
             <h1 class="workspace-title">{{ report.title }}</h1>
-            <p class="lead">{{ report.executive_summary|default:"Combined report built from selected marketing plans." }}</p>
+            <p class="lead">{{ editorial_overrides.introduction_override|default:report.executive_summary|default:"Combined report built from selected marketing plans." }}</p>
             <div class="hero-actions">
                 <a class="button button-primary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'docx' %}">Export Word</a>
                 <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'pdf' %}">Export PDF</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'xlsx' %}">Export Excel</a>
                 <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'json' %}">Export JSON</a>
             </div>
         </div>
@@ -23,6 +24,123 @@
         <article class="metric-card"><span>Created</span><strong>{{ report.created_at|date:"Y-m-d H:i" }}</strong></article>
     </section>
 
+    {% if executive_synthesis %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Executive Synthesis</span>
+                <h2>{{ executive_synthesis.headline }}</h2>
+            </div>
+            <p class="strategy-text">{{ executive_synthesis.overview }}</p>
+            {% if executive_synthesis.priority_themes %}
+                <div class="gene-chip-row">
+                    {% for item in executive_synthesis.priority_themes %}
+                        <span class="gene-chip">{{ item }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+
+    {% if roadmap_bands %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Executive Roadmap</span>
+                <h2>Horizontal view of the main chronology bands</h2>
+            </div>
+            <div class="executive-roadmap">
+                {% for band in roadmap_bands %}
+                    <article class="executive-roadmap__card">
+                        <span class="executive-roadmap__window">{{ band.window }}</span>
+                        <h3>{{ band.phase }}</h3>
+                        <p><strong>{{ band.plan_title }}</strong> · {{ band.plan_type }}</p>
+                        <p>{{ band.action }}</p>
+                        <div class="report-summary-table__meta">Owner: {{ band.owner }}{% if band.success_signal %} | Signal: {{ band.success_signal }}{% endif %}</div>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {% if timeline_summary_rows %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Executive Timeline</span>
+                <h2>Cross-plan milestones and ownership in one chronology layer</h2>
+            </div>
+            <div class="report-summary-table-wrap">
+                <table class="report-summary-table">
+                    <thead>
+                        <tr>
+                            <th>Plan</th>
+                            <th>Phase</th>
+                            <th>Window</th>
+                            <th>Owner</th>
+                            <th>Action</th>
+                            <th>Success Signal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in timeline_summary_rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.plan_title }}</strong>
+                                    <div class="report-summary-table__meta">{{ row.plan_type }}</div>
+                                </td>
+                                <td>{{ row.phase }}</td>
+                                <td>{{ row.window }}</td>
+                                <td>{{ row.owner }}</td>
+                                <td>{{ row.action }}</td>
+                                <td>{{ row.success_signal|default:"-" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+
+    {% if kpi_summary_rows %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">KPI Summary</span>
+                <h2>Combined success measures across the selected plans</h2>
+            </div>
+            <div class="report-summary-table-wrap">
+                <table class="report-summary-table">
+                    <thead>
+                        <tr>
+                            <th>Plan</th>
+                            <th>KPI</th>
+                            <th>Metric</th>
+                            <th>Target</th>
+                            <th>Rationale</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in kpi_summary_rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.plan_title }}</strong>
+                                    <div class="report-summary-table__meta">{{ row.plan_type }}</div>
+                                </td>
+                                <td>
+                                    {{ row.metric_label }}
+                                    <div class="report-summary-table__meta">{{ row.source_label }}</div>
+                                </td>
+                                <td>{{ row.metric }}</td>
+                                <td>{{ row.target|default:"-" }}</td>
+                                <td>
+                                    <span class="kpi-status-badge kpi-status-badge--{{ row.status_class }}">{{ row.status_label }}</span>
+                                    <div class="report-summary-table__meta">{{ row.rationale|default:"No rationale captured." }}</div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+
     {% if strategist_note %}
         <section class="workspace-panel detail-panel">
             <div class="section-heading">
@@ -32,6 +150,29 @@
             <p class="strategy-text">{{ strategist_note|linebreaksbr }}</p>
         </section>
     {% endif %}
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Editorial Layer</span>
+            <h2>Refine the top and bottom narrative of the final report.</h2>
+        </div>
+        <form method="post" class="styled-form">
+            {% csrf_token %}
+            <div class="marketing-builder-grid marketing-builder-grid--two">
+                <div class="form-row">
+                    <label for="{{ edit_form.introduction_override.id_for_label }}">Introduction Override</label>
+                    {{ edit_form.introduction_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.conclusion_override.id_for_label }}">Conclusion Override</label>
+                    {{ edit_form.conclusion_override }}
+                </div>
+            </div>
+            <div class="panel-editor__actions">
+                <button class="button button-primary" type="submit">Save Final Report Narrative</button>
+            </div>
+        </form>
+    </section>
 
     <section class="workspace-panel detail-panel">
         <div class="section-heading">
@@ -99,5 +240,59 @@
             </section>
         </section>
     {% endfor %}
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Combined Gantt</span>
+            <h2>Designed execution timeline across all included plans</h2>
+        </div>
+        <section class="dashboard-metrics compare-metric-grid">
+            <article class="metric-card"><span>Planned</span><strong>{{ gantt_status_counts.planned }}</strong></article>
+            <article class="metric-card"><span>Active</span><strong>{{ gantt_status_counts.active }}</strong></article>
+            <article class="metric-card"><span>Done</span><strong>{{ gantt_status_counts.done }}</strong></article>
+            <article class="metric-card"><span>Risk</span><strong>{{ gantt_status_counts.risk }}</strong></article>
+        </section>
+        <div class="gantt-board" style="--gantt-columns: {{ gantt_phases|length }};">
+            <div class="gantt-board__header">
+                {% for phase in gantt_phases %}
+                    <div class="gantt-board__phase">{{ phase }}</div>
+                {% endfor %}
+            </div>
+            <div class="gantt-board__body">
+                {% for row in gantt_rows %}
+                    <div class="gantt-row">
+                        <div class="gantt-card gantt-card--{{ row.status_class }}" style="grid-column: {{ row.phase_col }};">
+                            <strong>{{ row.task }}</strong>
+                            <div class="gene-chip-row">
+                                <span class="gene-chip">{{ row.plan_title }}</span>
+                                <span class="gene-chip">{{ row.phase }}</span>
+                                <span class="gantt-status gantt-status--{{ row.status_class }}">{{ row.status_signal }}</span>
+                            </div>
+                            <p><strong>Owner:</strong> {{ row.owner }}</p>
+                            <p><strong>Window:</strong> {{ row.start_period }} to {{ row.end_period }}</p>
+                            {% if row.dependency %}
+                                <p><strong>Dependency:</strong> {{ row.dependency }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="empty-state">
+                        <h3>No combined gantt rows yet.</h3>
+                        <p>Include launch, growth, account, or detailed plans with structured gantt rows to see the final report timeline.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    {% if editorial_overrides.conclusion_override %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Conclusion</span>
+                <h2>Final report closing summary</h2>
+            </div>
+            <p class="strategy-text">{{ editorial_overrides.conclusion_override|linebreaksbr }}</p>
+        </section>
+    {% endif %}
 </main>
 {% endblock %}

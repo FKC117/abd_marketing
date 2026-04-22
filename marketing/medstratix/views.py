@@ -18,6 +18,7 @@ from urllib.parse import urlencode
 from .forms import (
     GuidelineUploadForm,
     FinalMarketingReportBuilderForm,
+    FinalMarketingReportEditForm,
     MarketAccountForm,
     MarketingPlanBuilderForm,
     MarketingPlanSectionEditForm,
@@ -52,7 +53,7 @@ from .services.marketing_plan_schema import (
     marketing_plan_sections,
     stringify_plan_value,
 )
-from .services.marketing_plan_xlsx_export import build_marketing_plan_xlsx
+from .services.marketing_plan_xlsx_export import build_final_marketing_report_xlsx, build_marketing_plan_xlsx
 from .services.nccn_profiles import get_parser_profile
 from .services.panel_comparison import build_comparison_bundle, build_guideline_coverage, build_panel_set_profile, compare_panel_profiles
 from .services.strategy_exporter import (
@@ -170,6 +171,204 @@ def _final_marketing_report_payload(ordered_plans: list[MarketingPlan], strategi
         "strategist_note": strategist_note or "",
         "combined_summary": _final_marketing_report_summary(ordered_plans),
     }
+
+
+def _final_report_gantt_rows(ordered_plans: list[MarketingPlan]) -> tuple[list[dict], list[str], dict]:
+    phases = []
+    rows = []
+    status_counts = {"planned": 0, "active": 0, "done": 0, "risk": 0}
+    for plan in ordered_plans:
+        for row in list((plan.plan_json or {}).get("gantt_data", []) or []):
+            phase = stringify_plan_value(row.get("phase") or "Execution")
+            if phase not in phases:
+                phases.append(phase)
+            status_signal = stringify_plan_value(row.get("status_signal") or "Planned")
+            status_key = status_signal.lower().strip()
+            status_class = "planned"
+            if any(token in status_key for token in ("progress", "active", "running")):
+                status_class = "active"
+            elif any(token in status_key for token in ("done", "complete", "closed")):
+                status_class = "done"
+            elif any(token in status_key for token in ("risk", "delay", "blocked")):
+                status_class = "risk"
+            status_counts[status_class] = status_counts.get(status_class, 0) + 1
+            rows.append(
+                {
+                    "plan_title": plan.title,
+                    "task": stringify_plan_value(row.get("task") or "Untitled task"),
+                    "phase": phase,
+                    "owner": stringify_plan_value(row.get("owner") or "Unassigned"),
+                    "start_period": stringify_plan_value(row.get("start_period") or "TBD"),
+                    "end_period": stringify_plan_value(row.get("end_period") or "TBD"),
+                    "dependency": stringify_plan_value(row.get("dependency") or ""),
+                    "status_signal": status_signal,
+                    "status_class": status_class,
+                }
+            )
+    phase_index = {phase: index + 1 for index, phase in enumerate(phases or ["Execution"])}
+    for row in rows:
+        row["phase_col"] = phase_index.get(row["phase"], 1)
+    return rows, (phases or ["Execution"]), status_counts
+
+
+def _final_report_kpi_summary(ordered_plans: list[MarketingPlan]) -> list[dict]:
+    kpi_sources = {
+        "detailed_plan": ("follow_up_control_kpis", "Follow-up, Control & KPIs"),
+        "launch_plan": ("launch_kpis", "Launch KPIs"),
+        "growth_plan": ("growth_kpis", "Growth KPIs"),
+        "account_plan": ("account_kpis", "Account KPIs"),
+    }
+    rows = []
+    for plan in ordered_plans:
+        payload = plan.plan_json or {}
+        source_key, source_label = kpi_sources.get(plan.output_style, ("", ""))
+        kpi_payload = payload.get(source_key, {}) if source_key else {}
+        if not isinstance(kpi_payload, dict):
+            continue
+        for metric_key, metric_value in kpi_payload.items():
+            if isinstance(metric_value, dict):
+                metric_text = stringify_plan_value(metric_value.get("metric") or metric_value.get("summary") or metric_value)
+                target_text = stringify_plan_value(
+                    metric_value.get("target")
+                    or metric_value.get("target_y1")
+                    or metric_value.get("target_y2")
+                    or metric_value.get("goal")
+                    or metric_value.get("expected")
+                    or ""
+                )
+                rationale_text = stringify_plan_value(
+                    metric_value.get("rationale")
+                    or metric_value.get("notes")
+                    or metric_value.get("signal")
+                    or metric_value.get("why_it_matters")
+                    or ""
+                )
+            else:
+                metric_text = stringify_plan_value(metric_value)
+                target_text = ""
+                rationale_text = ""
+            score = 1
+            status_label = "Weak"
+            status_class = "weak"
+            if metric_text and target_text and rationale_text:
+                score = 3
+                status_label = "Strong"
+                status_class = "strong"
+            elif metric_text and target_text:
+                score = 2
+                status_label = "Watch"
+                status_class = "watch"
+            rows.append(
+                {
+                    "plan_title": plan.title,
+                    "plan_type": MARKETING_PLAN_STYLE_LABELS.get(plan.output_style, plan.output_style),
+                    "source_label": source_label,
+                    "metric_label": metric_key.replace("_", " ").title(),
+                    "metric": metric_text,
+                    "target": target_text,
+                    "rationale": rationale_text,
+                    "score": score,
+                    "status_label": status_label,
+                    "status_class": status_class,
+                }
+            )
+    return rows
+
+
+def _final_report_timeline_summary(ordered_plans: list[MarketingPlan]) -> list[dict]:
+    timeline_sources = {
+        "detailed_plan": ("execution_roadmap", "Execution Roadmap"),
+        "launch_plan": ("ninety_day_timeline", "90-Day Timeline"),
+        "growth_plan": ("quarterly_roadmap", "Quarterly Roadmap"),
+        "account_plan": ("account_action_plan", "30/60/90 Account Action Plan"),
+    }
+    rows = []
+    for plan in ordered_plans:
+        payload = plan.plan_json or {}
+        source_key, source_label = timeline_sources.get(plan.output_style, ("", ""))
+        timeline_items = payload.get(source_key, []) if source_key else []
+        if not isinstance(timeline_items, list):
+            continue
+        for item in timeline_items:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                {
+                    "plan_title": plan.title,
+                    "plan_type": MARKETING_PLAN_STYLE_LABELS.get(plan.output_style, plan.output_style),
+                    "source_label": source_label,
+                    "phase": stringify_plan_value(item.get("phase") or item.get("theme") or item.get("horizon") or "Execution"),
+                    "window": stringify_plan_value(item.get("timeline") or item.get("week_range") or item.get("quarter") or item.get("horizon") or "TBD"),
+                    "owner": stringify_plan_value(item.get("owner") or "Unassigned"),
+                    "action": stringify_plan_value(item.get("action") or item.get("deliverable") or item.get("key_actions") or "Planned action"),
+                    "success_signal": stringify_plan_value(item.get("success_metric") or item.get("desired_outcome") or item.get("deliverable") or ""),
+                }
+            )
+    return rows
+
+
+def _final_report_executive_synthesis(ordered_plans: list[MarketingPlan], strategist_note: str = "") -> dict:
+    plan_titles = [plan.title for plan in ordered_plans]
+    plan_labels = [MARKETING_PLAN_STYLE_LABELS.get(plan.output_style, plan.output_style) for plan in ordered_plans]
+    geographies = sorted({plan.geography for plan in ordered_plans if plan.geography})
+    disease_focuses = sorted({plan.disease_focus for plan in ordered_plans if plan.disease_focus})
+    summary_texts = [_marketing_plan_display_summary(plan) for plan in ordered_plans if _marketing_plan_display_summary(plan)]
+
+    chronology_sentence = "The final report moves through " + ", ".join(plan_labels) + "." if plan_labels else "The final report combines the selected plans into one chronology."
+    context_sentence = []
+    if disease_focuses:
+        context_sentence.append(f"disease focus: {', '.join(disease_focuses[:3])}")
+    if geographies:
+        context_sentence.append(f"geography: {', '.join(geographies[:3])}")
+    context_line = f"Core context includes {'; '.join(context_sentence)}." if context_sentence else ""
+
+    top_priorities = []
+    for plan in ordered_plans:
+        payload = plan.plan_json or {}
+        for key in ("recommended_next_steps", "launch_risks", "priority_risks"):
+            items = payload.get(key, []) or []
+            if isinstance(items, list):
+                for item in items[:2]:
+                    text = stringify_plan_value(item)
+                    if text and text not in top_priorities:
+                        top_priorities.append(text)
+            if len(top_priorities) >= 5:
+                break
+        if len(top_priorities) >= 5:
+            break
+
+    narrative = " ".join(summary_texts[:2]).strip() or "This final report consolidates the selected marketing plans into a single operational narrative."
+    if strategist_note:
+        narrative = f"{narrative} Strategist framing: {strategist_note.strip()}"
+
+    return {
+        "headline": "Integrated Oncology Growth Narrative",
+        "overview": " ".join(filter(None, [chronology_sentence, context_line, narrative])).strip(),
+        "included_plan_titles": plan_titles,
+        "priority_themes": top_priorities[:5],
+    }
+
+
+def _final_report_roadmap_bands(timeline_summary_rows: list[dict]) -> list[dict]:
+    bands = []
+    seen = set()
+    for row in timeline_summary_rows:
+        key = (row["window"], row["phase"], row["plan_title"], row["action"])
+        if key in seen:
+            continue
+        seen.add(key)
+        bands.append(
+            {
+                "window": row["window"],
+                "phase": row["phase"],
+                "plan_title": row["plan_title"],
+                "plan_type": row["plan_type"],
+                "owner": row["owner"],
+                "action": row["action"],
+                "success_signal": row["success_signal"],
+            }
+        )
+    return bands[:12]
 
 
 def _marketing_plan_context_snapshot(plan: MarketingPlan) -> dict:
@@ -1940,17 +2139,55 @@ def final_marketing_report_workspace(request):
 @login_required
 def final_marketing_report_detail(request, pk):
     report = get_object_or_404(FinalMarketingReport.objects.select_related("created_by"), pk=pk)
+    if request.method == "POST":
+        edit_form = FinalMarketingReportEditForm(request.POST)
+        if edit_form.is_valid():
+            payload = dict(report.report_json or {})
+            payload["editorial_overrides"] = {
+                key: value.strip()
+                for key, value in edit_form.cleaned_data.items()
+                if value and value.strip()
+            }
+            report.report_json = payload
+            intro = payload["editorial_overrides"].get("introduction_override", "").strip()
+            if intro:
+                report.executive_summary = intro
+            report.save(update_fields=["report_json", "executive_summary", "updated_at"])
+            messages.success(request, "Final report narrative overrides saved.")
+            return redirect("medstratix:final_marketing_report_detail", pk=report.pk)
+    else:
+        edit_form = FinalMarketingReportEditForm(
+            initial={
+                "introduction_override": (report.report_json or {}).get("editorial_overrides", {}).get("introduction_override", report.executive_summary or ""),
+                "conclusion_override": (report.report_json or {}).get("editorial_overrides", {}).get("conclusion_override", ""),
+            }
+        )
+
     ordered_plans = []
     plans_by_id = MarketingPlan.objects.in_bulk(report.ordered_plan_ids or [])
     for plan_id in report.ordered_plan_ids or []:
         if plan_id in plans_by_id:
             ordered_plans.append(plans_by_id[plan_id])
+    gantt_rows, gantt_phases, gantt_status_counts = _final_report_gantt_rows(ordered_plans)
+    kpi_summary_rows = _final_report_kpi_summary(ordered_plans)
+    timeline_summary_rows = _final_report_timeline_summary(ordered_plans)
+    executive_synthesis = _final_report_executive_synthesis(ordered_plans, (report.report_json or {}).get("strategist_note", ""))
+    roadmap_bands = _final_report_roadmap_bands(timeline_summary_rows)
     context = {
         "page_title": report.title,
         "report": report,
         "ordered_plans": ordered_plans,
         "ordered_sections": (report.report_json or {}).get("ordered_plans", []),
         "strategist_note": (report.report_json or {}).get("strategist_note", ""),
+        "editorial_overrides": dict((report.report_json or {}).get("editorial_overrides", {}) or {}),
+        "edit_form": edit_form,
+        "gantt_rows": gantt_rows,
+        "gantt_phases": gantt_phases,
+        "gantt_status_counts": gantt_status_counts,
+        "kpi_summary_rows": kpi_summary_rows,
+        "timeline_summary_rows": timeline_summary_rows,
+        "executive_synthesis": executive_synthesis,
+        "roadmap_bands": roadmap_bands,
     }
     return render(request, "medstratix/final_marketing_report_detail.html", context)
 
@@ -1978,6 +2215,15 @@ def final_marketing_report_export(request, pk, fmt):
     if export_format == "pdf":
         pdf_buffer = build_final_marketing_report_pdf(report)
         response = HttpResponse(pdf_buffer.getvalue(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "xlsx":
+        workbook_bytes = build_final_marketing_report_xlsx(report)
+        response = HttpResponse(
+            workbook_bytes,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 

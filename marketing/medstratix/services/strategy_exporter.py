@@ -1020,6 +1020,100 @@ def build_final_marketing_report_docx(report):
 
     payload = report.report_json or {}
     ordered_sections = payload.get("ordered_plans", []) or []
+    editorial = payload.get("editorial_overrides", {}) or {}
+
+    def executive_synthesis():
+        plan_titles = [stringify_plan_value(item.get("title")) for item in ordered_sections]
+        summaries = [stringify_plan_value(item.get("summary")) for item in ordered_sections if item.get("summary")]
+        top_themes = []
+        for item in ordered_sections:
+            for section in item.get("sections", []):
+                label = (section.get("label") or "").lower()
+                if label in {"recommended next steps", "immediate next steps"} and isinstance(section.get("value"), list):
+                    for step in section.get("value", [])[:2]:
+                        text = stringify_plan_value(step)
+                        if text and text not in top_themes:
+                            top_themes.append(text)
+                if len(top_themes) >= 5:
+                    break
+            if len(top_themes) >= 5:
+                break
+        overview = " ".join(summaries[:2]).strip() or "This final report consolidates the selected marketing plans into one strategic chronology."
+        if payload.get("strategist_note"):
+            overview = f"{overview} Strategist framing: {stringify_plan_value(payload.get('strategist_note'))}"
+        return {
+            "plan_titles": plan_titles,
+            "overview": overview,
+            "priority_themes": top_themes[:5],
+        }
+
+    def final_kpi_rows():
+        rows = []
+        for item in ordered_sections:
+            plan_title = stringify_plan_value(item.get("title"))
+            plan_type = stringify_plan_value(item.get("output_style_label"))
+            for section in item.get("sections", []):
+                label = (section.get("label") or "").lower()
+                value = section.get("value")
+                if label not in {"follow-up, control & kpis", "launch kpis", "growth kpis", "account kpis"} or not isinstance(value, dict):
+                    continue
+                for metric_key, metric_value in value.items():
+                    if isinstance(metric_value, dict):
+                        metric_text = stringify_plan_value(metric_value.get("metric") or metric_value.get("summary") or metric_value)
+                        target_text = stringify_plan_value(
+                            metric_value.get("target")
+                            or metric_value.get("target_y1")
+                            or metric_value.get("target_y2")
+                            or metric_value.get("goal")
+                            or metric_value.get("expected")
+                            or ""
+                        )
+                        rationale_text = stringify_plan_value(
+                            metric_value.get("rationale")
+                            or metric_value.get("notes")
+                            or metric_value.get("signal")
+                            or metric_value.get("why_it_matters")
+                            or ""
+                        )
+                    else:
+                        metric_text = stringify_plan_value(metric_value)
+                        target_text = ""
+                        rationale_text = ""
+                    rows.append(
+                        {
+                            "plan_title": plan_title,
+                            "plan_type": plan_type,
+                            "metric_label": metric_key.replace("_", " ").title(),
+                            "metric": metric_text,
+                            "target": target_text,
+                            "rationale": rationale_text,
+                        }
+                    )
+        return rows
+
+    def final_timeline_rows():
+        rows = []
+        for item in ordered_sections:
+            plan_title = stringify_plan_value(item.get("title"))
+            plan_type = stringify_plan_value(item.get("output_style_label"))
+            for section in item.get("sections", []):
+                label = (section.get("label") or "").lower()
+                value = section.get("value")
+                if label not in {"execution roadmap", "90-day timeline", "quarterly roadmap", "30/60/90 account action plan"} or not isinstance(value, list):
+                    continue
+                for timeline_item in value:
+                    rows.append(
+                        {
+                            "plan_title": plan_title,
+                            "plan_type": plan_type,
+                            "phase": stringify_plan_value(timeline_item.get("phase") or timeline_item.get("theme") or timeline_item.get("horizon") or "Execution"),
+                            "window": stringify_plan_value(timeline_item.get("timeline") or timeline_item.get("week_range") or timeline_item.get("quarter") or timeline_item.get("horizon") or "TBD"),
+                            "owner": stringify_plan_value(timeline_item.get("owner") or "Unassigned"),
+                            "action": stringify_plan_value(timeline_item.get("action") or timeline_item.get("deliverable") or timeline_item.get("key_actions") or "Planned action"),
+                            "success_signal": stringify_plan_value(timeline_item.get("success_metric") or timeline_item.get("desired_outcome") or timeline_item.get("deliverable") or ""),
+                        }
+                    )
+        return rows
 
     document = Document()
     styles = document.styles
@@ -1034,7 +1128,7 @@ def build_final_marketing_report_docx(report):
     title_run = title.add_run(report.title or "Final Marketing Report")
     title_run.font.color.rgb = accent
 
-    document.add_paragraph(report.executive_summary or payload.get("combined_summary") or "No combined summary available.")
+    document.add_paragraph(editorial.get("introduction_override") or report.executive_summary or payload.get("combined_summary") or "No combined summary available.")
     _add_key_value(document, "Chronology Mode", stringify_plan_value(report.chronology_mode))
     _add_key_value(document, "Included Plans", str(len(report.ordered_plan_ids or [])))
 
@@ -1042,6 +1136,42 @@ def build_final_marketing_report_docx(report):
     if strategist_note:
         document.add_heading("Strategist Note", level=1)
         document.add_paragraph(stringify_plan_value(strategist_note))
+
+    synthesis = executive_synthesis()
+    document.add_heading("Executive Synthesis", level=1)
+    document.add_paragraph(synthesis["overview"])
+    if synthesis["priority_themes"]:
+        _add_bullets(document, synthesis["priority_themes"])
+
+    timeline_rows = final_timeline_rows()
+    if timeline_rows:
+        document.add_heading("Executive Timeline", level=1)
+        for index, row in enumerate(timeline_rows, start=1):
+            document.add_heading(f"{index}. {row['plan_title']} | {row['phase']}", level=2)
+            _add_key_value(document, "Plan Type", row["plan_type"])
+            _add_key_value(document, "Window", row["window"])
+            _add_key_value(document, "Owner", row["owner"])
+            _add_key_value(document, "Action", row["action"])
+            _add_key_value(document, "Success Signal", row["success_signal"])
+
+    kpi_rows = final_kpi_rows()
+    if kpi_rows:
+        document.add_heading("Cross-Plan KPI Summary", level=1)
+        for index, row in enumerate(kpi_rows, start=1):
+            document.add_heading(f"{index}. {row['plan_title']} | {row['metric_label']}", level=2)
+            _add_key_value(document, "Plan Type", row["plan_type"])
+            _add_key_value(document, "Metric", row["metric"])
+            _add_key_value(document, "Target", row["target"])
+            _add_key_value(document, "Rationale", row["rationale"])
+
+    gantt_rows = []
+    for item in ordered_sections:
+        for section in item.get("sections", []):
+            if (section.get("label") or "").lower() == "gantt data" and isinstance(section.get("value"), list):
+                for row in section.get("value", []):
+                    row_copy = dict(row)
+                    row_copy["plan_title"] = item.get("title", "")
+                    gantt_rows.append(row_copy)
 
     document.add_heading("Chronology", level=1)
     for index, item in enumerate(ordered_sections, start=1):
@@ -1066,6 +1196,22 @@ def build_final_marketing_report_docx(report):
             else:
                 document.add_paragraph(stringify_plan_value(value) or "Not provided.")
 
+    if gantt_rows:
+        document.add_heading("Combined Gantt Timeline", level=1)
+        for index, row in enumerate(gantt_rows, start=1):
+            document.add_heading(f"{index}. {stringify_plan_value(row.get('task') or 'Untitled task')}", level=2)
+            _add_key_value(document, "Plan", stringify_plan_value(row.get("plan_title")))
+            _add_key_value(document, "Phase", stringify_plan_value(row.get("phase")))
+            _add_key_value(document, "Owner", stringify_plan_value(row.get("owner")))
+            _add_key_value(document, "Start Period", stringify_plan_value(row.get("start_period")))
+            _add_key_value(document, "End Period", stringify_plan_value(row.get("end_period")))
+            _add_key_value(document, "Dependency", stringify_plan_value(row.get("dependency")))
+            _add_key_value(document, "Status Signal", stringify_plan_value(row.get("status_signal")))
+
+    if editorial.get("conclusion_override"):
+        document.add_heading("Conclusion", level=1)
+        document.add_paragraph(stringify_plan_value(editorial.get("conclusion_override")))
+
     buffer = BytesIO()
     document.save(buffer)
     buffer.seek(0)
@@ -1085,6 +1231,98 @@ def build_final_marketing_report_pdf(report):
 
     payload = report.report_json or {}
     ordered_sections = payload.get("ordered_plans", []) or []
+    editorial = payload.get("editorial_overrides", {}) or {}
+
+    def executive_synthesis():
+        summaries = [stringify_plan_value(item.get("summary")) for item in ordered_sections if item.get("summary")]
+        top_themes = []
+        for item in ordered_sections:
+            for section in item.get("sections", []):
+                label = (section.get("label") or "").lower()
+                if label in {"recommended next steps", "immediate next steps"} and isinstance(section.get("value"), list):
+                    for step in section.get("value", [])[:2]:
+                        text = stringify_plan_value(step)
+                        if text and text not in top_themes:
+                            top_themes.append(text)
+                if len(top_themes) >= 5:
+                    break
+            if len(top_themes) >= 5:
+                break
+        overview = " ".join(summaries[:2]).strip() or "This final report consolidates the selected marketing plans into one strategic chronology."
+        if payload.get("strategist_note"):
+            overview = f"{overview} Strategist framing: {stringify_plan_value(payload.get('strategist_note'))}"
+        return {
+            "overview": overview,
+            "priority_themes": top_themes[:5],
+        }
+
+    def final_kpi_rows():
+        rows = []
+        for item in ordered_sections:
+            plan_title = stringify_plan_value(item.get("title"))
+            plan_type = stringify_plan_value(item.get("output_style_label"))
+            for section in item.get("sections", []):
+                label = (section.get("label") or "").lower()
+                value = section.get("value")
+                if label not in {"follow-up, control & kpis", "launch kpis", "growth kpis", "account kpis"} or not isinstance(value, dict):
+                    continue
+                for metric_key, metric_value in value.items():
+                    if isinstance(metric_value, dict):
+                        metric_text = stringify_plan_value(metric_value.get("metric") or metric_value.get("summary") or metric_value)
+                        target_text = stringify_plan_value(
+                            metric_value.get("target")
+                            or metric_value.get("target_y1")
+                            or metric_value.get("target_y2")
+                            or metric_value.get("goal")
+                            or metric_value.get("expected")
+                            or ""
+                        )
+                        rationale_text = stringify_plan_value(
+                            metric_value.get("rationale")
+                            or metric_value.get("notes")
+                            or metric_value.get("signal")
+                            or metric_value.get("why_it_matters")
+                            or ""
+                        )
+                    else:
+                        metric_text = stringify_plan_value(metric_value)
+                        target_text = ""
+                        rationale_text = ""
+                    rows.append(
+                        {
+                            "plan_title": plan_title,
+                            "plan_type": plan_type,
+                            "metric_label": metric_key.replace("_", " ").title(),
+                            "metric": metric_text,
+                            "target": target_text,
+                            "rationale": rationale_text,
+                        }
+                    )
+        return rows
+
+    def final_timeline_rows():
+        rows = []
+        for item in ordered_sections:
+            plan_title = stringify_plan_value(item.get("title"))
+            plan_type = stringify_plan_value(item.get("output_style_label"))
+            for section in item.get("sections", []):
+                label = (section.get("label") or "").lower()
+                value = section.get("value")
+                if label not in {"execution roadmap", "90-day timeline", "quarterly roadmap", "30/60/90 account action plan"} or not isinstance(value, list):
+                    continue
+                for timeline_item in value:
+                    rows.append(
+                        {
+                            "plan_title": plan_title,
+                            "plan_type": plan_type,
+                            "phase": stringify_plan_value(timeline_item.get("phase") or timeline_item.get("theme") or timeline_item.get("horizon") or "Execution"),
+                            "window": stringify_plan_value(timeline_item.get("timeline") or timeline_item.get("week_range") or timeline_item.get("quarter") or timeline_item.get("horizon") or "TBD"),
+                            "owner": stringify_plan_value(timeline_item.get("owner") or "Unassigned"),
+                            "action": stringify_plan_value(timeline_item.get("action") or timeline_item.get("deliverable") or timeline_item.get("key_actions") or "Planned action"),
+                            "success_signal": stringify_plan_value(timeline_item.get("success_metric") or timeline_item.get("desired_outcome") or timeline_item.get("deliverable") or ""),
+                        }
+                    )
+        return rows
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle("FinalReportTitle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=22, textColor=colors.HexColor("#0b4a72"), alignment=TA_LEFT)
@@ -1112,7 +1350,7 @@ def build_final_marketing_report_pdf(report):
         story.append(Spacer(1, 0.08 * inch))
 
     add_heading(report.title or "Final Marketing Report", title_style)
-    add_body(report.executive_summary or payload.get("combined_summary") or "No combined summary available.", body_style)
+    add_body(editorial.get("introduction_override") or report.executive_summary or payload.get("combined_summary") or "No combined summary available.", body_style)
     add_body(f"Chronology Mode: {stringify_plan_value(report.chronology_mode)}", body_style)
     add_body(f"Included Plans: {len(report.ordered_plan_ids or [])}", body_style)
 
@@ -1120,6 +1358,42 @@ def build_final_marketing_report_pdf(report):
     if strategist_note:
         add_heading("Strategist Note", heading_style)
         add_body(stringify_plan_value(strategist_note), body_style)
+
+    synthesis = executive_synthesis()
+    add_heading("Executive Synthesis", heading_style)
+    add_body(synthesis["overview"], body_style)
+    if synthesis["priority_themes"]:
+        add_bullets(synthesis["priority_themes"])
+
+    timeline_rows = final_timeline_rows()
+    if timeline_rows:
+        add_heading("Executive Timeline", heading_style)
+        for row in timeline_rows:
+            add_heading(f"{row['plan_title']} | {row['phase']}", subheading_style)
+            add_body(f"Plan Type: {row['plan_type']}", body_style)
+            add_body(f"Window: {row['window']}", body_style)
+            add_body(f"Owner: {row['owner']}", body_style)
+            add_body(f"Action: {row['action']}", body_style)
+            add_body(f"Success Signal: {row['success_signal']}", body_style)
+
+    kpi_rows = final_kpi_rows()
+    if kpi_rows:
+        add_heading("Cross-Plan KPI Summary", heading_style)
+        for row in kpi_rows:
+            add_heading(f"{row['plan_title']} | {row['metric_label']}", subheading_style)
+            add_body(f"Plan Type: {row['plan_type']}", body_style)
+            add_body(f"Metric: {row['metric']}", body_style)
+            add_body(f"Target: {row['target']}", body_style)
+            add_body(f"Rationale: {row['rationale']}", body_style)
+
+    gantt_rows = []
+    for item in ordered_sections:
+        for section in item.get("sections", []):
+            if (section.get("label") or "").lower() == "gantt data" and isinstance(section.get("value"), list):
+                for row in section.get("value", []):
+                    row_copy = dict(row)
+                    row_copy["plan_title"] = item.get("title", "")
+                    gantt_rows.append(row_copy)
 
     add_heading("Chronology", heading_style)
     for index, item in enumerate(ordered_sections, start=1):
@@ -1141,6 +1415,21 @@ def build_final_marketing_report_pdf(report):
                     add_bullets(value)
             else:
                 add_body(stringify_plan_value(value), body_style)
+
+    if gantt_rows:
+        add_heading("Combined Gantt Timeline", heading_style)
+        for row in gantt_rows:
+            add_heading(stringify_plan_value(row.get("task") or "Untitled task"), subheading_style)
+            add_body(f"Plan: {stringify_plan_value(row.get('plan_title'))}", body_style)
+            add_body(f"Phase: {stringify_plan_value(row.get('phase'))}", body_style)
+            add_body(f"Owner: {stringify_plan_value(row.get('owner'))}", body_style)
+            add_body(f"Window: {stringify_plan_value(row.get('start_period'))} to {stringify_plan_value(row.get('end_period'))}", body_style)
+            add_body(f"Dependency: {stringify_plan_value(row.get('dependency'))}", body_style)
+            add_body(f"Status Signal: {stringify_plan_value(row.get('status_signal'))}", body_style)
+
+    if editorial.get("conclusion_override"):
+        add_heading("Conclusion", heading_style)
+        add_body(stringify_plan_value(editorial.get("conclusion_override")), body_style)
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=42, leftMargin=42, topMargin=50, bottomMargin=40)

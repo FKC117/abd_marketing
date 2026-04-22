@@ -398,3 +398,17 @@ class FinalMarketingReportBuilderForm(forms.Form):
             if set(custom_order) != selected_ids:
                 raise forms.ValidationError("Custom ID Order must contain exactly the same selected plan IDs.")
         return cleaned_data
+
+
+class FinalMarketingReportEditForm(forms.Form):
+    introduction_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+    conclusion_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        apply_widget_style(
+            {
+                "introduction_override": self.fields["introduction_override"],
+                "conclusion_override": self.fields["conclusion_override"],
+            }
+        )
