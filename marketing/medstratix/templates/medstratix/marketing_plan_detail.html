@@ -8,14 +8,24 @@
         <div class="workspace-stage__hero">
             <span class="eyebrow">{{ plan_style_label }}</span>
             <h1 class="workspace-title">{{ plan.title }}</h1>
-            <p class="lead">{{ plan_summary|default:"Not provided." }}</p>
+            <p class="lead">
+                {% if is_async_pending %}
+                    This plan is running in the background. You can stay on this page while we poll for completion.
+                {% elif plan.status == "failed" %}
+                    This plan failed during background generation. Review the error below and rerun when ready.
+                {% else %}
+                    {{ plan_summary|default:"Not provided." }}
+                {% endif %}
+            </p>
             <div class="hero-actions">
-                <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'docx' %}">Export Word</a>
-                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'pdf' %}">Export PDF</a>
-                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'xlsx' %}">Export Excel</a>
-                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'csv' %}">Export CSV</a>
-                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'json' %}">Export JSON</a>
-                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_gantt' plan.pk %}">Open Gantt</a>
+                {% if plan.status == "completed" %}
+                    <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'docx' %}">Export Word</a>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'pdf' %}">Export PDF</a>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'xlsx' %}">Export Excel</a>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'csv' %}">Export CSV</a>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'json' %}">Export JSON</a>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_gantt' plan.pk %}">Open Gantt</a>
+                {% endif %}
                 {% for next_link in next_plan_links %}
                     <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_builder' %}?source_plans={{ plan.pk }}&output_style={{ next_link.style }}">{{ next_link.label }}</a>
                 {% endfor %}
@@ -23,8 +33,33 @@
         </div>
     </section>
 
+    {% if is_async_pending %}
+        <section class="workspace-panel detail-panel" id="marketing-plan-pending" data-status-url="{% url 'medstratix:marketing_plan_status' plan.pk %}">
+            <div class="section-heading">
+                <span class="eyebrow">Background Generation</span>
+                <h2>We are generating this plan asynchronously.</h2>
+            </div>
+            <div class="compare-company-card">
+                <p><strong>Status:</strong> <span id="marketing-plan-status-label">{{ plan.status|title }}</span></p>
+                <p><strong>Task ID:</strong> <span id="marketing-plan-task-id">{{ async_task_meta.id|default:"Pending assignment" }}</span></p>
+                <p id="marketing-plan-pending-copy">Your chosen model can keep running without blocking the browser. This page will refresh automatically when the plan is ready.</p>
+            </div>
+        </section>
+    {% elif plan.status == "failed" %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Generation Failed</span>
+                <h2>The background job did not complete successfully.</h2>
+            </div>
+            <div class="compare-company-card">
+                <p>{{ generation_error|default:"No error text was saved." }}</p>
+            </div>
+        </section>
+    {% endif %}
+
     <section class="dashboard-metrics compare-metric-grid">
         <article class="metric-card"><span>Plan Type</span><strong>{{ plan_style_label }}</strong></article>
+        <article class="metric-card"><span>Status</span><strong>{{ plan.status|title }}</strong></article>
         <article class="metric-card"><span>Sections</span><strong>{{ plan_highlights.section_count }}</strong></article>
         <article class="metric-card"><span>Campaign Rows</span><strong>{{ plan_highlights.campaign_count }}</strong></article>
         <article class="metric-card"><span>Timeline Rows</span><strong>{{ plan_highlights.timeline_count }}</strong></article>
@@ -175,11 +210,92 @@
 
     <section class="workspace-panel detail-panel">
         <div class="section-heading">
+            <span class="eyebrow">Execution Data Editor</span>
+            <h2>Edit spreadsheet and gantt rows directly so the system depends less on raw LLM output.</h2>
+        </div>
+        <form method="post" class="styled-form">
+            {% csrf_token %}
+            <input type="hidden" name="plan_action" value="execution_data">
+            <div class="detail-columns detail-columns--two">
+                <article class="detail-column">
+                    <div class="detail-column__header">
+                        <h3>Spreadsheet Model Rows</h3>
+                        <span>{{ editable_spreadsheet_rows|length }}</span>
+                    </div>
+                    <div class="detail-scroll">
+                        <input id="spreadsheet_total" type="hidden" name="spreadsheet_total" value="{{ editable_spreadsheet_rows|length }}">
+                        <div class="execution-table-wrap">
+                            <table class="execution-table">
+                                <thead>
+                                    <tr>
+                                        {% for field in spreadsheet_fields %}
+                                            <th>{{ field|cut:"_"|title }}</th>
+                                        {% endfor %}
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="spreadsheet_body">
+                                    {% for row in editable_spreadsheet_rows %}
+                                        <tr class="execution-table__row">
+                                            {% for cell in row.cells %}
+                                                <td><input class="form-control" type="text" name="spreadsheet_{{ forloop.parentloop.counter0 }}_{{ cell.field }}" value="{{ cell.value }}"></td>
+                                            {% endfor %}
+                                            <td><button class="button button-secondary execution-row-remove" type="button">Remove</button></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="button button-secondary execution-row-add" type="button" data-target="spreadsheet">Add Spreadsheet Row</button>
+                    </div>
+                </article>
+                <article class="detail-column">
+                    <div class="detail-column__header">
+                        <h3>Gantt Rows</h3>
+                        <span>{{ editable_gantt_rows|length }}</span>
+                    </div>
+                    <div class="detail-scroll">
+                        <input id="gantt_total" type="hidden" name="gantt_total" value="{{ editable_gantt_rows|length }}">
+                        <div class="execution-table-wrap">
+                            <table class="execution-table">
+                                <thead>
+                                    <tr>
+                                        {% for field in gantt_fields %}
+                                            <th>{{ field|cut:"_"|title }}</th>
+                                        {% endfor %}
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gantt_body">
+                                    {% for row in editable_gantt_rows %}
+                                        <tr class="execution-table__row">
+                                            {% for cell in row.cells %}
+                                                <td><input class="form-control" type="text" name="gantt_{{ forloop.parentloop.counter0 }}_{{ cell.field }}" value="{{ cell.value }}"></td>
+                                            {% endfor %}
+                                            <td><button class="button button-secondary execution-row-remove" type="button">Remove</button></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="button button-secondary execution-row-add" type="button" data-target="gantt">Add Gantt Row</button>
+                    </div>
+                </article>
+            </div>
+            <div class="panel-editor__actions">
+                <button class="button button-primary" type="submit">Save Execution Rows</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
             <span class="eyebrow">Human Overrides</span>
             <h2>Refine the plan and reuse those edits in the next generation.</h2>
         </div>
         <form method="post" class="styled-form">
             {% csrf_token %}
+            <input type="hidden" name="plan_action" value="section_overrides">
             <div class="marketing-builder-grid marketing-builder-grid--two">
                 <div class="form-row form-row--full">
                     <label for="{{ edit_form.executive_summary_override.id_for_label }}">Executive Summary Override</label>
@@ -220,4 +336,98 @@
         </form>
     </section>
 </main>
+<script>
+    (function () {
+        const pendingPanel = document.getElementById("marketing-plan-pending");
+        if (pendingPanel) {
+            const statusUrl = pendingPanel.dataset.statusUrl;
+            const statusLabel = document.getElementById("marketing-plan-status-label");
+            const taskLabel = document.getElementById("marketing-plan-task-id");
+            const pendingCopy = document.getElementById("marketing-plan-pending-copy");
+
+            const poll = async function () {
+                try {
+                    const response = await fetch(statusUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}});
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    if (statusLabel) statusLabel.textContent = (data.status || "unknown").replace("_", " ");
+                    if (taskLabel && data.async_task && data.async_task.id) taskLabel.textContent = data.async_task.id;
+                    if (data.status === "completed" || data.status === "failed") {
+                        window.location.reload();
+                        return;
+                    }
+                    if (pendingCopy && data.async_task && data.async_task.state) {
+                        pendingCopy.textContent = `Task state: ${data.async_task.state}. We will keep checking automatically.`;
+                    }
+                } catch (error) {
+                    console.warn("Marketing plan status polling failed", error);
+                }
+            };
+
+            window.setInterval(poll, 4000);
+            poll();
+        }
+
+        const rowConfigs = {
+            spreadsheet: {{ spreadsheet_fields|safe }},
+            gantt: {{ gantt_fields|safe }},
+        };
+
+        function updateNames(target) {
+            const tbody = document.getElementById(target + "_body");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const total = document.getElementById(target + "_total");
+            total.value = rows.length;
+            rows.forEach((row, rowIndex) => {
+                const inputs = Array.from(row.querySelectorAll("input"));
+                inputs.forEach((input, cellIndex) => {
+                    input.name = `${target}_${rowIndex}_${rowConfigs[target][cellIndex]}`;
+                });
+            });
+        }
+
+        function buildRow(target) {
+            const row = document.createElement("tr");
+            row.className = "execution-table__row";
+            rowConfigs[target].forEach(() => {
+                const td = document.createElement("td");
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "form-control";
+                td.appendChild(input);
+                row.appendChild(td);
+            });
+            const actionCell = document.createElement("td");
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "button button-secondary execution-row-remove";
+            button.textContent = "Remove";
+            actionCell.appendChild(button);
+            row.appendChild(actionCell);
+            return row;
+        }
+
+        document.querySelectorAll(".execution-row-add").forEach((button) => {
+            button.addEventListener("click", () => {
+                const target = button.dataset.target;
+                const tbody = document.getElementById(target + "_body");
+                tbody.appendChild(buildRow(target));
+                updateNames(target);
+            });
+        });
+
+        document.addEventListener("click", (event) => {
+            const removeButton = event.target.closest(".execution-row-remove");
+            if (!removeButton) return;
+            const row = removeButton.closest("tr");
+            const tbody = row.parentElement;
+            row.remove();
+            if (tbody.id === "spreadsheet_body") updateNames("spreadsheet");
+            if (tbody.id === "gantt_body") updateNames("gantt");
+        });
+
+        updateNames("spreadsheet");
+        updateNames("gantt");
+    }());
+</script>
 {% endblock %}

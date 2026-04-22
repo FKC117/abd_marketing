@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Final Marketing Report{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Final Marketing Report</span>
+            <h1 class="workspace-title">{{ report.title }}</h1>
+            <p class="lead">{{ report.executive_summary|default:"Combined report built from selected marketing plans." }}</p>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'docx' %}">Export Word</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'pdf' %}">Export PDF</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_export' report.pk 'json' %}">Export JSON</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-metrics compare-metric-grid">
+        <article class="metric-card"><span>Chronology</span><strong>{{ report.chronology_mode|title }}</strong></article>
+        <article class="metric-card"><span>Included Plans</span><strong>{{ ordered_plans|length }}</strong></article>
+        <article class="metric-card"><span>Created</span><strong>{{ report.created_at|date:"Y-m-d H:i" }}</strong></article>
+    </section>
+
+    {% if strategist_note %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Strategist Note</span>
+                <h2>Final report framing</h2>
+            </div>
+            <p class="strategy-text">{{ strategist_note|linebreaksbr }}</p>
+        </section>
+    {% endif %}
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Chronology</span>
+            <h2>Included plans in final order</h2>
+        </div>
+        <div class="compare-company-list">
+            {% for plan in ordered_plans %}
+                <div class="compare-company-card">
+                    <strong>{{ forloop.counter }}. {{ plan.title }}</strong>
+                    <p><strong>Type:</strong> {{ plan.plan_json.plan_type_label|default:plan.output_style }}</p>
+                    <p><strong>Created:</strong> {{ plan.created_at }}</p>
+                    <p>{{ plan.executive_summary|default:"No summary saved." }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% for item in ordered_sections %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">{{ item.output_style_label }}</span>
+                <h2>{{ forloop.counter }}. {{ item.title }}</h2>
+            </div>
+            <p class="strategy-text">{{ item.summary }}</p>
+            <section class="detail-columns detail-columns--two">
+                {% for section in item.sections %}
+                    <article class="detail-column">
+                        <div class="detail-column__header">
+                            <h3>{{ section.label }}</h3>
+                            <span>{{ section.count }}</span>
+                        </div>
+                        <div class="detail-scroll">
+                            {% if section.kind == "object" %}
+                                <div class="mini-list">
+                                    {% for key, value in section.value.items %}
+                                        <div class="mini-item mini-item--catalog">
+                                            <strong>{{ key|cut:"_"|title }}</strong>
+                                            <p>{{ value }}</p>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% elif section.kind == "list" %}
+                                <div class="compare-company-list">
+                                    {% for entry in section.value %}
+                                        <div class="compare-company-card">
+                                            {% if entry.items %}
+                                                {% for item_key, item_value in entry.items %}
+                                                    <p><strong>{{ item_key|cut:"_"|title }}:</strong> {{ item_value }}</p>
+                                                {% endfor %}
+                                            {% else %}
+                                                <p>{{ entry }}</p>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="mini-item mini-item--catalog">
+                                    <p>{{ section.value }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </section>
+        </section>
+    {% endfor %}
+</main>
+{% endblock %}

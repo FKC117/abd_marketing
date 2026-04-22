@@ -1,7 +1,7 @@
 import logging
 import os
 
-from google import genai
+from .strategy_generator import _make_genai_client
 
 
 logger = logging.getLogger("medstratix.gemini_models")
@@ -44,8 +44,13 @@ def list_strategy_models() -> list[dict]:
         logger.warning("GOOGLE_API_KEY missing while listing Gemini models. Falling back to static options.")
         return FALLBACK_MODELS
 
+    fetch_remote = os.getenv("GEMINI_FETCH_MODELS_ON_LOAD", "").strip().lower() in {"1", "true", "yes", "on"}
+    if not fetch_remote:
+        logger.info("Using static Gemini model list for builder dropdown. Remote model fetch is disabled.")
+        return FALLBACK_MODELS
+
     try:
-        client = genai.Client(api_key=api_key)
+        client = _make_genai_client(api_key)
         options = []
         for model in client.models.list():
             code = getattr(model, "name", "") or ""

@@ -1,0 +1,201 @@
+You are building a strategic oncology marketing plan for MedStratix.
+
+Return valid JSON only.
+Do not wrap the JSON in markdown fences.
+Do not include commentary before or after the JSON.
+
+This plan type is: account_plan
+Plan-type focus:
+An institution-specific plan centered on stakeholder dynamics, account moves, and revenue potential.
+
+Required top-level keys:
+- title
+- account_summary
+- stakeholder_map
+- account_dynamics
+- account_value_proposition
+- objections_and_responses
+- account_action_plan
+- revenue_potential
+- account_kpis
+- recommended_next_steps
+
+Detailed schema rules:
+- `account_summary` must include:
+  - target_account
+  - strategic_value
+  - current_position
+  - summary
+
+- `stakeholder_map` must be a list of at least 4 objects with:
+  - stakeholder
+  - role
+  - influence
+  - motivation
+  - barrier
+  - engagement_move
+
+- `account_dynamics` must include:
+  - decision_process
+  - referral_distortion
+  - compliance_watchouts
+  - service_expectations
+
+- `account_value_proposition` must include:
+  - primary_message
+  - clinical_value
+  - operational_value
+  - institutional_value
+
+- `objections_and_responses` must be a list of at least 5 objects with:
+  - objection
+  - why_it_exists
+  - response
+  - proof_point
+
+- `account_action_plan` must be a list of at least 6 objects with:
+  - horizon
+  - action
+  - owner
+  - stakeholder_target
+  - desired_outcome
+  - success_metric
+
+- `revenue_potential` must be a list of at least 3 objects with:
+  - period
+  - sample_volume_assumption
+  - revenue_projection
+  - confidence_level
+
+- `spreadsheet_model` must be a list of at least 3 objects with:
+  - row_type
+  - label
+  - period
+  - formula_logic
+  - numeric_value
+  - notes
+
+- `gantt_data` must be a list of at least 6 objects with:
+  - task
+  - phase
+  - owner
+  - start_period
+  - end_period
+  - dependency
+  - status_signal
+
+- `account_kpis` must include:
+  - stakeholder_coverage
+  - meetings_completed
+  - trial_to_order_conversion
+  - repeat_order_signal
+  - revenue_progress
+
+- `recommended_next_steps` must be a list of actions.
+
+Commercial rules:
+- Keep the plan commercially realistic, field-executable, and compliant.
+- Do not recommend bribery, kickbacks, unethical inducement schemes, or covert referral payments.
+- If the market has corruption or referral distortion pressure, address it through ethical counter-strategy, institutional contracting, education, evidence, service quality, and compliance-safe positioning.
+- The plan should read like something a serious oncology commercial team could actually use.
+
+Plan title: Account Plan
+Objective: Establish the core strategic narrative and high-level mission for launching CeGaT's NGS panels in Bangladesh. Use the existing competitive intelligence to define a 'German Shield' value proposition that justifies a 5x price premium through absolute precision and zero-kickback ethical integrity. The output should be a concise summary of our 'Where to Play' and 'How to Win' logic.
+Geography: Bangladesh
+Disease focus: All types of Solid Tumour
+Output style: account_plan
+Include product context: no
+
+Strategist note:
+Focus on the 'German quality' brand prestige as our primary weapon against local low-cost competitors. We must strictly avoid price wars and instead lean into the 'cost of inaccuracy'—explaining how a cheap test is actually the most expensive mistake if it leads to the wrong treatment
+
+Sales expectation guardrails:
+{
+  "planning_horizon": "",
+  "revenue_guardrail_note": "",
+  "expected_monthly_samples": "",
+  "expected_year_one_revenue_bdt": "",
+  "expected_quarterly_revenue_bdt": ""
+}
+
+Market-specific emphasis:
+- reflect high price sensitivity
+- account for biological sample shipping or cross-border logistics hurdles
+- treat unethical competitor referral pressure as a market distortion and compliance risk
+- recommend compliant counter-strategies only
+- make campaigns and field actions realistic for Bangladesh oncology institutions
+
+Market account summary:
+[]
+
+Stakeholder context:
+[]
+
+Your product context:
+{}
+
+Competitor context:
+{}
+
+Comparison summary:
+{}
+
+Source plan contexts:
+[
+  {
+    "id": 15,
+    "swot": {},
+    "title": "Growth Plan",
+    "geography": "Bangladesh",
+    "sales_pitch": {},
+    "output_style": "growth_plan",
+    "campaign_plan": [],
+    "disease_focus": "All types of Solid Tumour",
+    "market_research": {},
+    "executive_summary": {},
+    "sales_expectation": {
+      "planning_horizon": "",
+      "revenue_guardrail_note": "",
+      "expected_monthly_samples": "",
+      "expected_year_one_revenue_bdt": "",
+      "expected_quarterly_revenue_bdt": ""
+    },
+    "output_style_label": "Growth Plan",
+    "recommended_next_steps": [
+      "Immediately finalize the BDT price list and the 'Cost of Inaccuracy' calculator for field team deployment.",
+      "Schedule and execute the mandatory 'German Shield' messaging and compliance certification training for all commercial and medical staff within the next 10 days.",
+      "Execute a final, full-process stress test of the primary cold-chain logistics partner, from a clinic in Dhaka to the lab in Germany.",
+      "Confirm the initial wave of MSL meetings with the top 15 priority KOLs to occur in Weeks 5-6.",
+      "Submit the final draft of the 'Institutional Compliance & Quality Partnership' MOU template for immediate legal and compliance review and approval.",
+      "Package initial set of international case studies and clinical papers into a digital evidence pack for the MSL team."
+    ],
+    "human_section_overrides": {},
+    "target_audience_personas": [],
+    "unique_value_proposition": {}
+  }
+]
+
+Make the plan specific enough to support:
+- executive decision-making
+- field execution
+- medical affairs activation
+- compliant commercial positioning
+- campaign planning
+- sales messaging
+- spreadsheet export readiness through structured timelines, revenue assumptions, and action lists whenever relevant to the selected plan type
+- include spreadsheet-ready rows for revenue or execution tracking when the selected plan type supports it
+- include gantt-ready task rows with phase, owner, start_period, end_period, dependency, and status_signal when the selected plan type supports it
+- treat the user-provided sales expectation guardrails as the primary planning anchor for volume and revenue estimates
+- do not inflate sample volume or revenue projections beyond those guardrails unless you explicitly explain why a higher case is justified
+- do not invent KOL names or doctor identities
+- only use named people if they are explicitly present in verified stakeholder context
+- if stakeholder input is unverified, refer to that person only by segment, role, or specialty
+
+If source plan contexts are provided:
+- treat them as prior strategic thinking that should be reused and refined, not ignored
+- prioritize any human_section_overrides inside those source plans over earlier generated text
+- build continuity from the source plans instead of starting from zero
+
+If you cannot fully calculate spreadsheet_model or gantt_data precisely:
+- still return the best structured draft rows possible from the plan logic
+- never omit the field just because some numbers or dates are estimated

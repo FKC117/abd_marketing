@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 
 from .models import (
     CompanyType,
+    FinalMarketingReport,
     GuidelineDocument,
     GuidelineStatus,
     MarketAccount,
@@ -334,3 +335,66 @@ class MarketingPlanSectionEditForm(forms.Form):
                 "next_steps_override": self.fields["next_steps_override"],
             }
         )
+
+
+class FinalMarketingReportBuilderForm(forms.Form):
+    CHRONOLOGY_CHOICES = (
+        ("oldest_first", "Oldest to Newest"),
+        ("newest_first", "Newest to Oldest"),
+        ("plan_ladder", "Plan Ladder (Brief to Account)"),
+        ("custom_ids", "Custom ID Order"),
+    )
+
+    title = forms.CharField(max_length=255)
+    selected_plans = forms.ModelMultipleChoiceField(
+        queryset=MarketingPlan.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+    )
+    chronology_mode = forms.ChoiceField(choices=CHRONOLOGY_CHOICES, initial="oldest_first")
+    custom_plan_order = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text="Use comma-separated plan IDs when Custom ID Order is selected. Example: 10,12,15",
+    )
+    strategist_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["selected_plans"].queryset = MarketingPlan.objects.order_by("-created_at")
+        apply_widget_style(
+            {
+                "title": self.fields["title"],
+                "chronology_mode": self.fields["chronology_mode"],
+                "custom_plan_order": self.fields["custom_plan_order"],
+                "strategist_note": self.fields["strategist_note"],
+            }
+        )
+
+    def clean_custom_plan_order(self):
+        raw = (self.cleaned_data.get("custom_plan_order") or "").strip()
+        if not raw:
+            return []
+        values = []
+        for token in raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                values.append(int(token))
+            except ValueError as exc:
+                raise forms.ValidationError("Custom order must contain only comma-separated numeric plan IDs.") from exc
+        return values
+
+    def clean(self):
+        cleaned_data = super().clean()
+        selected_plans = list(cleaned_data.get("selected_plans") or [])
+        chronology_mode = cleaned_data.get("chronology_mode")
+        custom_order = cleaned_data.get("custom_plan_order") or []
+        selected_ids = {plan.pk for plan in selected_plans}
+
+        if chronology_mode == "custom_ids":
+            if not custom_order:
+                raise forms.ValidationError("Provide custom plan IDs when using Custom ID Order.")
+            if set(custom_order) != selected_ids:
+                raise forms.ValidationError("Custom ID Order must contain exactly the same selected plan IDs.")
+        return cleaned_data

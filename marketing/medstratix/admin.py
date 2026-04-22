@@ -6,6 +6,7 @@ from .models import (
     Company,
     ComparisonRun,
     ComparisonReport,
+    FinalMarketingReport,
     Gene,
     GuidelineDocument,
     GuidelineSection,
@@ -191,6 +192,14 @@ class MarketingPlanAdmin(admin.ModelAdmin):
     list_filter = ["output_style", "include_product_context", "llm_model"]
     search_fields = ["title", "objective", "geography", "disease_focus"]
     autocomplete_fields = ["created_by", "market_account", "comparison_run"]
+
+
+@admin.register(FinalMarketingReport)
+class FinalMarketingReportAdmin(admin.ModelAdmin):
+    list_display = ["title", "chronology_mode", "created_by", "created_at"]
+    list_filter = ["chronology_mode"]
+    search_fields = ["title", "executive_summary"]
+    autocomplete_fields = ["created_by"]
 
 
 @admin.register(PanelGuidelineMatch)

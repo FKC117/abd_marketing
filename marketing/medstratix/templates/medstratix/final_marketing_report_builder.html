@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Final Report Builder{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Final Report Builder</span>
+            <h1 class="workspace-title">Combine selected marketing plans into one master report.</h1>
+            <p class="lead">Pick the plans you want, choose the chronology, and create one final narrative artifact for leadership review.</p>
+        </div>
+    </section>
+
+    <section class="marketing-builder-layout">
+        <form method="post" class="workspace-panel marketing-builder-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="marketing-builder-errors">
+                    {% for error in form.non_field_errors %}
+                        <p class="form-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Basics</span>
+                        <h2>Name the final report and choose ordering logic</h2>
+                    </div>
+                </div>
+                <div class="marketing-builder-grid marketing-builder-grid--two">
+                    <div class="form-row">
+                        <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                        {{ form.title }}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.chronology_mode.id_for_label }}">{{ form.chronology_mode.label }}</label>
+                        {{ form.chronology_mode }}
+                    </div>
+                    <div class="form-row form-row--full">
+                        <label for="{{ form.custom_plan_order.id_for_label }}">{{ form.custom_plan_order.label }}</label>
+                        {{ form.custom_plan_order }}
+                        <p class="field-hint">{{ form.custom_plan_order.help_text }}</p>
+                    </div>
+                    <div class="form-row form-row--full">
+                        <label for="{{ form.strategist_note.id_for_label }}">{{ form.strategist_note.label }}</label>
+                        {{ form.strategist_note }}
+                    </div>
+                </div>
+            </section>
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Plan Selection</span>
+                        <h2>Choose which plans belong in the final chronology</h2>
+                    </div>
+                </div>
+                <div class="marketing-selection-card">
+                    <div class="marketing-selection-card__body checkbox-grid checkbox-grid--scroll">
+                        {{ form.selected_plans }}
+                    </div>
+                </div>
+                <div class="marketing-selection-card" id="custom-order-card">
+                    <div class="marketing-selection-card__head">
+                        <div>
+                            <h3>Custom Plan Order</h3>
+                            <p>Use the controls below when `Custom ID Order` is selected.</p>
+                        </div>
+                    </div>
+                    <div class="marketing-selection-card__body">
+                        <div id="custom-order-list" class="compare-company-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="marketing-builder-submit">
+                <div>
+                    <h3>Create Final Report</h3>
+                    <p>This will preserve the selected plans in the chosen order and create a reusable final report record.</p>
+                </div>
+                <button class="button button-primary" type="submit">Build Final Report</button>
+            </div>
+        </form>
+    </section>
+</main>
+<script>
+    (function () {
+        const chronology = document.getElementById("{{ form.chronology_mode.id_for_label }}");
+        const customOrderInput = document.getElementById("{{ form.custom_plan_order.id_for_label }}");
+        const selectedPlanInputs = Array.from(document.querySelectorAll("input[name='selected_plans']"));
+        const customOrderCard = document.getElementById("custom-order-card");
+        const customOrderList = document.getElementById("custom-order-list");
+        if (!chronology || !customOrderInput || !selectedPlanInputs.length || !customOrderCard || !customOrderList) return;
+
+        let order = [];
+
+        function selectedEntries() {
+            return selectedPlanInputs
+                .filter((input) => input.checked)
+                .map((input) => {
+                    const label = input.closest("label");
+                    const text = label ? label.textContent.trim() : `Plan ${input.value}`;
+                    return {id: input.value, text};
+                });
+        }
+
+        function syncOrder() {
+            const selected = selectedEntries();
+            const selectedIds = new Set(selected.map((item) => item.id));
+            order = order.filter((id) => selectedIds.has(id));
+            selected.forEach((item) => {
+                if (!order.includes(item.id)) order.push(item.id);
+            });
+            customOrderInput.value = order.join(", ");
+        }
+
+        function renderOrder() {
+            syncOrder();
+            customOrderList.innerHTML = "";
+            const selected = selectedEntries();
+            const lookup = Object.fromEntries(selected.map((item) => [item.id, item]));
+            order.forEach((id, index) => {
+                const item = lookup[id];
+                if (!item) return;
+                const card = document.createElement("div");
+                card.className = "compare-company-card";
+                const title = document.createElement("strong");
+                title.textContent = `${index + 1}. ${item.text}`;
+                card.appendChild(title);
+
+                const actions = document.createElement("div");
+                actions.className = "hero-actions";
+
+                const up = document.createElement("button");
+                up.type = "button";
+                up.className = "button button-secondary workspace-button";
+                up.textContent = "Up";
+                up.disabled = index === 0;
+                up.addEventListener("click", () => {
+                    [order[index - 1], order[index]] = [order[index], order[index - 1]];
+                    renderOrder();
+                });
+
+                const down = document.createElement("button");
+                down.type = "button";
+                down.className = "button button-secondary workspace-button";
+                down.textContent = "Down";
+                down.disabled = index === order.length - 1;
+                down.addEventListener("click", () => {
+                    [order[index + 1], order[index]] = [order[index], order[index + 1]];
+                    renderOrder();
+                });
+
+                actions.appendChild(up);
+                actions.appendChild(down);
+                card.appendChild(actions);
+                customOrderList.appendChild(card);
+            });
+            customOrderInput.value = order.join(", ");
+            customOrderCard.style.display = chronology.value === "custom_ids" ? "block" : "none";
+        }
+
+        const existing = (customOrderInput.value || "").split(",").map((value) => value.trim()).filter(Boolean);
+        if (existing.length) order = existing;
+        selectedPlanInputs.forEach((input) => input.addEventListener("change", renderOrder));
+        chronology.addEventListener("change", renderOrder);
+        renderOrder();
+    }());
+</script>
+{% endblock %}

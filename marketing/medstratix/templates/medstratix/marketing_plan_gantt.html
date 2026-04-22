@@ -8,13 +8,20 @@
         <div class="workspace-stage__hero">
             <span class="eyebrow">{{ plan_style_label }}</span>
             <h1 class="workspace-title">{{ plan.title }} Timeline</h1>
-            <p class="lead">This is the plan’s gantt-ready execution view built from structured timeline rows.</p>
+            <p class="lead">This is the plan's gantt-ready execution view built from structured timeline rows.</p>
             <div class="hero-actions">
                 <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_detail' plan.pk %}">Back To Plan</a>
                 <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'xlsx' %}">Export Excel</a>
                 <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'csv' %}">Export CSV</a>
             </div>
         </div>
+    </section>
+
+    <section class="dashboard-metrics compare-metric-grid">
+        <article class="metric-card"><span>Planned</span><strong>{{ gantt_status_counts.planned }}</strong></article>
+        <article class="metric-card"><span>Active</span><strong>{{ gantt_status_counts.active }}</strong></article>
+        <article class="metric-card"><span>Done</span><strong>{{ gantt_status_counts.done }}</strong></article>
+        <article class="metric-card"><span>Risk</span><strong>{{ gantt_status_counts.risk }}</strong></article>
     </section>
 
     <section class="workspace-panel detail-panel">
@@ -31,8 +38,12 @@
             <div class="gantt-board__body">
                 {% for row in gantt_rows %}
                     <div class="gantt-row">
-                        <div class="gantt-card" style="grid-column: {{ row.phase_col }};">
+                        <div class="gantt-card gantt-card--{{ row.status_class }}" style="grid-column: {{ row.phase_col }};">
                             <strong>{{ row.task }}</strong>
+                            <div class="gene-chip-row">
+                                <span class="gene-chip">{{ row.phase }}</span>
+                                <span class="gantt-status gantt-status--{{ row.status_class }}">{{ row.status_signal }}</span>
+                            </div>
                             <p><strong>Owner:</strong> {{ row.owner }}</p>
                             <p><strong>Window:</strong> {{ row.start_period }} to {{ row.end_period }}</p>
                             {% if row.dependency %}

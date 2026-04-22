@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Final Marketing Reports{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">Final Marketing Reports</span>
+            <h1 class="workspace-title">Combined chronology-based master reports live here.</h1>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:final_marketing_report_builder' %}">New Final Report</a>
+            </div>
+        </div>
+    </section>
+    <section class="workspace-panel workspace-panel--library">
+        <div class="workspace-list">
+            {% for report in reports %}
+                <article class="workspace-card">
+                    <div class="workspace-card__main">
+                        <div class="workspace-card__header">
+                            <div>
+                                <span class="workspace-card__type">Final Report</span>
+                                <h3>{{ report.title }}</h3>
+                            </div>
+                            <div class="workspace-card__badges">
+                                <span class="status-pill">{{ report.chronology_mode|title }}</span>
+                            </div>
+                        </div>
+                        <div class="workspace-card__stats">
+                            <span>{{ report.created_at }}</span>
+                            <span>{{ report.ordered_plan_ids|length }} plans</span>
+                        </div>
+                        <div class="workspace-card__profile">
+                            <strong>Summary</strong>
+                            <p>{{ report.executive_summary|default:"No summary saved."|truncatechars:280 }}</p>
+                        </div>
+                    </div>
+                    <div class="workspace-card__actions">
+                        <a class="button button-primary workspace-button" href="{% url 'medstratix:final_marketing_report_detail' report.pk %}">Open Report</a>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h3>No final reports yet.</h3>
+                    <p>Build one from your existing marketing plans.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

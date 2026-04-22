@@ -12,3 +12,4 @@ openpyxl
 whitenoise
 python-docx
 reportlab
+celery[redis]

@@ -10,6 +10,35 @@ from google import genai
 logger = logging.getLogger("medstratix.strategy")
 
 
+def _gemini_timeout_ms(env_var: str = "GEMINI_TIMEOUT_MS", default: str = "45000") -> int:
+    raw = (os.getenv(env_var, default) or default).strip()
+    try:
+        return max(int(raw), 10000)
+    except ValueError:
+        return max(int(default), 10000)
+
+
+def _masked_api_key(api_key: str) -> str:
+    if not api_key:
+        return "missing"
+    if len(api_key) <= 8:
+        return "***"
+    return f"{api_key[:4]}...{api_key[-4:]}"
+
+
+def _make_genai_client(api_key: str, timeout_ms: int | None = None):
+    timeout_ms = timeout_ms or _gemini_timeout_ms()
+    logger.info(
+        "Initializing Gemini developer client timeout_ms=%s api_key=%s",
+        timeout_ms,
+        _masked_api_key(api_key),
+    )
+    return genai.Client(
+        api_key=api_key,
+        http_options={"timeout": timeout_ms},
+    )
+
+
 def _panel_context(panel_like) -> dict:
     if isinstance(panel_like, dict):
         return {
@@ -246,11 +275,19 @@ def _market_accounts_context(market_accounts, stakeholders) -> str:
     )
 
 
-def _call_gemini_with_retry(*, client, model_name: str, prompt: str):
+def _call_gemini_with_retry(*, client, model_name: str, prompt: str, max_attempts: int = 3, timeout_ms: int | None = None):
     last_error = None
-    for attempt in range(3):
+    attempts = max(1, int(max_attempts or 1))
+    effective_timeout_ms = timeout_ms or _gemini_timeout_ms()
+    for attempt in range(attempts):
         try:
-            logger.info("Calling Gemini model=%s attempt=%s prompt_chars=%s", model_name, attempt + 1, len(prompt))
+            logger.info(
+                "Calling Gemini model=%s attempt=%s prompt_chars=%s timeout_ms=%s",
+                model_name,
+                attempt + 1,
+                len(prompt),
+                effective_timeout_ms,
+            )
             return client.models.generate_content(model=model_name, contents=prompt)
         except Exception as exc:
             last_error = exc
@@ -263,7 +300,7 @@ def _call_gemini_with_retry(*, client, model_name: str, prompt: str):
                 transient,
                 exc,
             )
-            if not transient or attempt == 2:
+            if not transient or attempt == attempts - 1:
                 raise
             time.sleep(2 * (attempt + 1))
     raise last_error
@@ -381,7 +418,7 @@ Competitor NCCN coverage:
         len(market_accounts or []),
         len(stakeholders or []),
     )
-    client = genai.Client(api_key=api_key)
+    client = _make_genai_client(api_key)
     response = _call_gemini_with_retry(client=client, model_name=model_name, prompt=prompt)
     text = _response_text(response)
     try:

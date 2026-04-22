@@ -1,0 +1,442 @@
+You are building a strategic oncology marketing plan for MedStratix.
+
+Return valid JSON only.
+Do not wrap the JSON in markdown fences.
+Do not include commentary before or after the JSON.
+
+This plan type is: launch_plan
+Plan-type focus:
+A 90-day execution plan with concrete launch sequencing, ownership, and milestones.
+
+Required top-level keys:
+- title
+- launch_summary
+- launch_assumptions
+- priority_accounts
+- ninety_day_timeline
+- launch_campaigns
+- resource_plan
+- launch_risks
+- launch_kpis
+- recommended_next_steps
+
+Detailed schema rules:
+- `launch_summary` must include:
+  - launch_objective
+  - launch_thesis
+  - win_condition
+  - summary
+
+- `launch_assumptions` must be a list of strings.
+
+- `priority_accounts` must be a list of at least 4 objects with:
+  - account_or_segment
+  - why_priority
+  - target_stakeholders
+  - desired_action
+
+- `ninety_day_timeline` must be a list of at least 8 objects with:
+  - phase
+  - week_range
+  - action
+  - owner
+  - deliverable
+  - dependency
+  - success_metric
+
+- `launch_campaigns` must be a list of 6 to 10 objects with:
+  - name
+  - audience
+  - objective
+  - message
+  - channel_mix
+  - timing
+  - call_to_action
+
+- `resource_plan` must be a list of at least 5 objects with:
+  - workstream
+  - owner
+  - support_needed
+  - risk_if_missing
+
+- `spreadsheet_model` must be a list of at least 3 objects with:
+  - row_type
+  - label
+  - period
+  - formula_logic
+  - numeric_value
+  - notes
+
+- `gantt_data` must be a list of at least 8 objects with:
+  - task
+  - phase
+  - owner
+  - start_period
+  - end_period
+  - dependency
+  - status_signal
+
+- `launch_risks` must be a list of strings.
+
+- `launch_kpis` must include:
+  - account_activation
+  - doctor_engagement
+  - sample_inquiries
+  - confirmed_samples
+  - launch_learning_signal
+
+- `recommended_next_steps` must be a list of immediate actions.
+
+Commercial rules:
+- Keep the plan commercially realistic, field-executable, and compliant.
+- Do not recommend bribery, kickbacks, unethical inducement schemes, or covert referral payments.
+- If the market has corruption or referral distortion pressure, address it through ethical counter-strategy, institutional contracting, education, evidence, service quality, and compliance-safe positioning.
+- The plan should read like something a serious oncology commercial team could actually use.
+
+Plan title: Brief_plan - Next Plan - Next Plan
+Objective: Establish the core strategic narrative and high-level mission for launching CeGaT's NGS panels in Bangladesh. Use the existing competitive intelligence to define a 'German Shield' value proposition that justifies a 5x price premium through absolute precision and zero-kickback ethical integrity. The output should be a concise summary of our 'Where to Play' and 'How to Win' logic.
+Geography: Bangladesh
+Disease focus: All types of Solid Tumour
+Output style: launch_plan
+Include product context: no
+
+Strategist note:
+Focus on the 'German quality' brand prestige as our primary weapon against local low-cost competitors. We must strictly avoid price wars and instead lean into the 'cost of inaccuracy'—explaining how a cheap test is actually the most expensive mistake if it leads to the wrong treatment
+
+Sales expectation guardrails:
+{
+  "planning_horizon": "",
+  "revenue_guardrail_note": "",
+  "expected_monthly_samples": "",
+  "expected_year_one_revenue_bdt": "",
+  "expected_quarterly_revenue_bdt": ""
+}
+
+Market-specific emphasis:
+- reflect high price sensitivity
+- account for biological sample shipping or cross-border logistics hurdles
+- treat unethical competitor referral pressure as a market distortion and compliance risk
+- recommend compliant counter-strategies only
+- make campaigns and field actions realistic for Bangladesh oncology institutions
+
+Market account summary:
+[]
+
+Stakeholder context:
+[]
+
+Your product context:
+{}
+
+Competitor context:
+{}
+
+Comparison summary:
+{}
+
+Source plan contexts:
+[
+  {
+    "id": 13,
+    "swot": {
+      "threats": [
+        "Aggressive price wars from local competitors making our premium difficult to sustain.",
+        "Entrenched unethical referral networks actively working to block our entry.",
+        "Potential for new, lower-cost international competitors entering the market.",
+        "Regulatory changes or customs issues impacting sample shipment.",
+        "Economic downturn further increasing price sensitivity."
+      ],
+      "strengths": [
+        "Unmatched 'Made in Germany' brand equity associated with precision, quality, and reliability.",
+        "Comprehensive international accreditations (CAP, CLIA, ISO) as a key differentiator.",
+        "Strictly ethical, zero-kickback business model, which can be positioned as a 'shield' for institutional reputation.",
+        "Superior test accuracy and comprehensive reporting, leading to better clinical decision-making."
+      ],
+      "weaknesses": [
+        "Significantly higher price point (approx. 5x) in a highly price-sensitive market.",
+        "Dependence on international logistics, leading to longer turnaround times and risk of sample compromise.",
+        "Lack of established local presence and relationships compared to incumbent labs.",
+        "Initial heavy investment required in education and market development to justify the value proposition."
+      ],
+      "opportunities": [
+        "Growing demand for personalized medicine among educated clinicians and patients.",
+        "Leveraging KOLs and academic institutions who prioritize clinical excellence over cost.",
+        "Positioning against the 'cost of inaccuracy' from cheaper tests leading to incorrect or ineffective treatments.",
+        "Establishing 'Institutional Compliance & Quality Partnerships' with hospitals seeking to build a reputation for cutting-edge, ethical care."
+      ]
+    },
+    "title": "Brief_plan - Next Plan",
+    "geography": "Bangladesh",
+    "sales_pitch": {
+      "elevator_pitch": "We provide Bangladeshi oncologists with direct access to Germany's highest standard of cancer diagnostics. With our 'German Shield' approach, we deliver absolute precision and an uncompromising ethical partnership, ensuring your most critical treatment decisions are based on data you can trust.",
+      "clinician_pitch": "Doctor, we know you can't afford any uncertainty when choosing a targeted therapy. While other tests may be cheaper, the cost of an inaccurate result is immense\u2014both for your patient's outcome and the cost of ineffective treatment. Our comprehensive, German-accredited NGS panel gives you the complete picture with verifiable accuracy, backed by a 100% ethical partnership. It's the new gold standard of care.",
+      "institution_pitch": "We are not just another lab; we are a strategic partner in building your institution's reputation as a center for excellence in oncology. Our 'German Shield' program offers Germany's most accredited NGS testing, wrapped in a fully compliant, transparent partnership model. By working with us, you mitigate clinical risk, eliminate exposure to unethical referral practices, and signal to the market that you are committed to the highest possible standard of patient care."
+    },
+    "output_style": "detailed_plan",
+    "campaign_plan": [
+      {
+        "kpi": "Number of attendees, number of follow-up meetings scheduled.",
+        "name": "KOL Launch Symposium",
+        "message": "The future of precision oncology in Bangladesh is here, built on German quality and ethical partnership.",
+        "audience": "Top 50 Academic KOLs",
+        "timeline": "Q2 2024",
+        "objective": "Establish credibility and introduce the 'German Shield' concept.",
+        "channel_mix": [
+          "In-Person Event",
+          "MSL Follow-up"
+        ],
+        "call_to_action": "Join our Scientific Advisory Board / Become an early access partner."
+      },
+      {
+        "kpi": "Number of institutions requesting an audit.",
+        "name": "'Cost of Inaccuracy' Roundtable",
+        "message": "A cheap test is the most expensive mistake. Protect your patients and your institution's finances.",
+        "audience": "Hospital Administrators, Heads of Oncology",
+        "timeline": "Q3 2024",
+        "objective": "Shift the conversation from test price to total cost of care.",
+        "channel_mix": [
+          "Invite-only Roundtable",
+          "Whitepaper"
+        ],
+        "call_to_action": "Request a personalized Total Cost of Inaccuracy audit for your institution."
+      },
+      {
+        "kpi": "Download count, lead generation form fills.",
+        "name": "Digital Case Study Series: The Bangladesh Files",
+        "message": "See how comprehensive genomic profiling changed treatment pathways for patients in Bangladesh.",
+        "audience": "Pragmatic Private Oncologists",
+        "timeline": "Q3-Q4 2024",
+        "objective": "Demonstrate clear clinical utility with local examples.",
+        "channel_mix": [
+          "Email Marketing",
+          "LinkedIn Ads",
+          "Website Content"
+        ],
+        "call_to_action": "Download the case study / Speak to a clinical specialist."
+      },
+      {
+        "kpi": "Registrations, live attendance rate.",
+        "name": "Webinar: Decoding Complex Cases",
+        "message": "Expert insights into applying comprehensive genomics to your clinical practice.",
+        "audience": "All Oncologists",
+        "timeline": "Q4 2024",
+        "objective": "Provide high-value education on the role of NGS in difficult-to-treat tumours.",
+        "channel_mix": [
+          "Webinar Platform",
+          "Social Media Promotion"
+        ],
+        "call_to_action": "Register for the free webinar."
+      },
+      {
+        "kpi": "Number of MOUs signed.",
+        "name": "Institutional Partnership Program Launch",
+        "message": "Become a CeGaT Center of Excellence: A partnership in quality and compliance.",
+        "audience": "Hospital Administrators",
+        "timeline": "Q2-Q3 2024",
+        "objective": "Formalize relationships with key accounts, locking out unethical competitors.",
+        "channel_mix": [
+          "Direct Outreach",
+          "Executive Meetings"
+        ],
+        "call_to_action": "Sign a Memorandum of Understanding for partnership."
+      },
+      {
+        "kpi": "Number of sample kits requested.",
+        "name": "Logistics Excellence Campaign",
+        "message": "Your sample's integrity is our priority. Seamless, reliable transport from your clinic to our German lab.",
+        "audience": "Oncologists and Lab Managers",
+        "timeline": "Ongoing from Q2 2024",
+        "objective": "Build confidence in the sample shipment process.",
+        "channel_mix": [
+          "Explainer Video",
+          "Brochure",
+          "Field Team Communication"
+        ],
+        "call_to_action": "Request a sample collection kit and see how easy it is."
+      },
+      {
+        "kpi": "Website traffic to accreditation page.",
+        "name": "Accreditation is Non-Negotiable",
+        "message": "Why international accreditation is the only true measure of a test's reliability.",
+        "audience": "All Stakeholders",
+        "timeline": "Ongoing",
+        "objective": "Educate the market on the importance of CAP/CLIA accreditation.",
+        "channel_mix": [
+          "Infographic",
+          "Blog Posts",
+          "MSL Detail Aid"
+        ],
+        "call_to_action": "View our accreditations online."
+      },
+      {
+        "kpi": "Number of active pathologist referrers.",
+        "name": "Referral Pathologist Education Program",
+        "message": "Partner with CeGaT to provide your oncologists with the most comprehensive genomic insights.",
+        "audience": "Pathologists",
+        "timeline": "Q3 2024",
+        "objective": "Engage pathologists as key partners in the diagnostic pathway.",
+        "channel_mix": [
+          "Small Group Meetings",
+          "Educational Materials"
+        ],
+        "call_to_action": "Integrate CeGaT testing into your referral service."
+      },
+      {
+        "kpi": "Number of partnerships established.",
+        "name": "Patient Advocacy Group Engagement",
+        "message": "Empowering patients to ask for the best possible diagnostic test.",
+        "audience": "Leading Cancer Patient Advocacy Groups",
+        "timeline": "Q4 2024",
+        "objective": "Build bottom-up demand and awareness.",
+        "channel_mix": [
+          "Meetings",
+          "Sponsorship of Patient Education Materials"
+        ],
+        "call_to_action": "Partner with us to educate your community."
+      },
+      {
+        "kpi": "Number of qualified leads captured at the booth.",
+        "name": "Conference Presence - BSMO Annual Meeting",
+        "message": "Visit the 'German Shield' booth to discuss the new standard in oncology diagnostics.",
+        "audience": "All Oncologists",
+        "timeline": "Q4 2024",
+        "objective": "Reinforce brand presence and generate leads.",
+        "channel_mix": [
+          "Exhibition Booth",
+          "Sponsored Session"
+        ],
+        "call_to_action": "Visit our booth for a consultation."
+      }
+    ],
+    "disease_focus": "All types of Solid Tumour",
+    "market_research": {
+      "key_constraints": [
+        "Extreme price sensitivity among patients and institutions.",
+        "Complex and unreliable cold-chain logistics for shipping biological samples internationally.",
+        "Lengthy turnaround times due to international shipping and processing.",
+        "Low awareness of the clinical and economic benefits of comprehensive genomic profiling vs. single-gene tests.",
+        "Bureaucratic hurdles in public sector procurement and a preference for lowest-cost tenders."
+      ],
+      "opportunity_map": "The primary opportunity lies within the top-tier of the market: academically-oriented KOLs, leading private hospital chains, and affluent patients who are willing to pay a premium for accuracy and reliability. There is a growing segment of clinicians frustrated with ambiguous or incorrect results from local labs, creating an appetite for a 'gold standard' alternative. This segment values clinical evidence, international accreditation, and transparent, ethical partnerships.",
+      "competitor_audit": "Primary competitors are local diagnostic labs offering basic, low-cost genetic tests or smaller NGS panels. Their key advantage is price (up to 5x lower) and established local relationships. Their primary weakness is a lack of international accreditation (e.g., CAP, CLIA), questionable data quality, and reliance on opaque referral networks. International competitors have a minimal direct presence, creating an opportunity for a high-quality provider.",
+      "market_landscape": "The oncology diagnostics market in Bangladesh is rapidly growing but highly fragmented. It is characterized by a mix of government institutions, large private hospitals, and numerous small-scale diagnostic centers. There is an increasing awareness of personalized medicine, but adoption is hampered by cost and lack of access to high-quality, comprehensive genomic profiling.",
+      "market_distortion": "The most significant market distortion is the prevalence of unethical referral practices. Some local competitors provide covert financial incentives or kickbacks to clinicians and smaller labs for sample referrals. This creates a non-clinical barrier to entry for ethically-bound companies and can compromise patient care by prioritizing financial gain over diagnostic accuracy."
+    },
+    "executive_summary": {
+      "mission": "To establish CeGaT's NGS panels as the undisputed gold standard for oncology diagnostics in Bangladesh, empowering clinicians to make the most precise treatment decisions with a partner they can trust.",
+      "summary": "This plan outlines a focused strategy to launch CeGaT's NGS panels in Bangladesh. By targeting evidence-driven oncologists and institutions, we will leverage a 'German Shield' value proposition to command a price premium. Our core tactics involve KOL engagement, clinical education on the 'cost of inaccuracy,' and establishing compliant institutional partnerships, directly countering unethical competitor practices through a superior, verifiable value proposition.",
+      "core_goal": "To successfully launch and justify a premium price point by positioning CeGaT as the 'German Shield'\u2014a symbol of uncompromising quality, accuracy, and ethical partnership, thereby capturing the high-value segment of the solid tumour testing market.",
+      "value_gap": "The Bangladeshi oncology market lacks access to globally accredited, high-precision NGS testing offered with absolute ethical integrity, leaving a void filled by low-cost, potentially unreliable alternatives and market-distorting referral practices."
+    },
+    "sales_expectation": {
+      "planning_horizon": "",
+      "revenue_guardrail_note": "",
+      "expected_monthly_samples": "",
+      "expected_year_one_revenue_bdt": "",
+      "expected_quarterly_revenue_bdt": ""
+    },
+    "output_style_label": "Detailed Marketing Plan",
+    "recommended_next_steps": [
+      "Finalize the BDT price list and develop a 'Cost of Inaccuracy' calculator tool for the field team.",
+      "Develop and deploy a mandatory training module for all commercial staff on the 'German Shield' messaging and compliant, ethical counter-positioning.",
+      "Secure and audit a primary and secondary cold-chain logistics partner for reliable sample shipment from major cities in Bangladesh to Germany.",
+      "Map and schedule initial engagement meetings with the top 10 high-priority, ethically-aligned KOLs.",
+      "Draft a template for the 'Institutional Compliance & Quality Partnership Program' and submit for legal and compliance review.",
+      "Create a clinical evidence package with case studies showcasing the impact of comprehensive, accurate NGS results on treatment decisions for solid tumours.",
+      "Hire and train a dedicated Medical Science Liaison (MSL) to lead KOL engagement.",
+      "Initiate the localization of the CeGaT website for the Bangladesh market, including translation and local contact information."
+    ],
+    "human_section_overrides": {},
+    "target_audience_personas": [
+      {
+        "role": "Head of Oncology at a leading public or private teaching hospital.",
+        "persona": "The Academic KOL",
+        "barriers": [
+          "Institutional budget constraints.",
+          "Bureaucratic procurement processes.",
+          "Skepticism towards commercial entities.",
+          "Time-poor and difficult to access."
+        ],
+        "priority": "High",
+        "motivations": [
+          "Clinical research and publications.",
+          "Access to the latest, most accurate diagnostic technology.",
+          "Maintaining a reputation as a national expert.",
+          "Training the next generation of oncologists."
+        ],
+        "engagement_approach": "Peer-to-peer engagement via Medical Science Liaisons (MSLs). Invitations to scientific advisory boards. Sponsoring educational symposiums and workshops. Collaborative research opportunities. Focus on data, accreditations, and clinical evidence."
+      },
+      {
+        "role": "Clinician at a high-volume private cancer center.",
+        "persona": "The Pragmatic Private Oncologist",
+        "barriers": [
+          "Extreme patient price sensitivity.",
+          "Existing relationships with local labs.",
+          "Perceives high-end NGS as 'too complex' or 'unnecessary' for most cases.",
+          "Potential exposure to competitor inducement schemes."
+        ],
+        "priority": "Medium",
+        "motivations": [
+          "Achieving good clinical outcomes for patients.",
+          "Practice efficiency and manageable turnaround times.",
+          "Clear, actionable reports that guide treatment decisions.",
+          "Patient satisfaction and retention."
+        ],
+        "engagement_approach": "Field team to deliver clear, concise messaging on the 'Cost of Inaccuracy'. Provide case studies with clear ROI (e.g., avoiding ineffective targeted therapy). Simple and efficient sample submission process. Offer clear reporting and clinical support. Highlight how premium testing can enhance their practice's reputation."
+      },
+      {
+        "role": "CEO, COO, or Head of Procurement at a major private hospital.",
+        "persona": "The Hospital Administrator",
+        "barriers": [
+          "Strict budget controls and focus on cost per test.",
+          "Existing contracts with other diagnostic providers.",
+          "Resistance from clinicians tied to competitor referral schemes.",
+          "Concern about logistical complexity."
+        ],
+        "priority": "High",
+        "motivations": [
+          "Institutional reputation and brand positioning.",
+          "Risk management and clinical governance.",
+          "Profitability and cost-effectiveness.",
+          "Offering a 'Center of Excellence' for oncology."
+        ],
+        "engagement_approach": "Formal, top-down approach. Propose an 'Institutional Compliance & Quality Partnership'. Frame CeGaT as a strategic partner that enhances the hospital's brand and mitigates clinical risk. Provide data on total cost of care, not just test price. Ensure all contracts are transparent, compliant, and defensible."
+      }
+    ],
+    "unique_value_proposition": {
+      "why_now": "The era of 'good enough' diagnostics is over. With the rising cost of targeted therapies, the most expensive test is the one that leads to the wrong treatment. The Bangladeshi oncology community now has a choice: settle for uncertainty or partner with the German Shield for absolute precision and ethical peace of mind.",
+      "headline": "The German Shield: Absolute Precision in Oncology. Your Uncompromising Partner for Ethical, Evidence-Based Care.",
+      "proof_points": [
+        "**Verifiable Accuracy:** Globally recognized CAP, CLIA, and ISO 15189 accreditations ensure every result meets the highest international standards.",
+        "**Comprehensive Insight:** Our large NGS panels provide a complete genomic picture, minimizing the risk of missing critical mutations that smaller, cheaper panels overlook.",
+        "**Ethical Guarantee:** A 100% transparent, zero-kickback policy that protects clinician and institutional integrity.",
+        "**End-to-End Support:** Dedicated logistical management from Bangladesh to Germany and expert clinical interpretation support for every report."
+      ]
+    }
+  }
+]
+
+Make the plan specific enough to support:
+- executive decision-making
+- field execution
+- medical affairs activation
+- compliant commercial positioning
+- campaign planning
+- sales messaging
+- spreadsheet export readiness through structured timelines, revenue assumptions, and action lists whenever relevant to the selected plan type
+- include spreadsheet-ready rows for revenue or execution tracking when the selected plan type supports it
+- include gantt-ready task rows with phase, owner, start_period, end_period, dependency, and status_signal when the selected plan type supports it
+- treat the user-provided sales expectation guardrails as the primary planning anchor for volume and revenue estimates
+- do not inflate sample volume or revenue projections beyond those guardrails unless you explicitly explain why a higher case is justified
+- do not invent KOL names or doctor identities
+- only use named people if they are explicitly present in verified stakeholder context
+- if stakeholder input is unverified, refer to that person only by segment, role, or specialty
+
+If source plan contexts are provided:
+- treat them as prior strategic thinking that should be reused and refined, not ignored
+- prioritize any human_section_overrides inside those source plans over earlier generated text
+- build continuity from the source plans instead of starting from zero
+
+If you cannot fully calculate spreadsheet_model or gantt_data precisely:
+- still return the best structured draft rows possible from the plan logic
+- never omit the field just because some numbers or dates are estimated

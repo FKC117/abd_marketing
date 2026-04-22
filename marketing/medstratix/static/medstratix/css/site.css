@@ -1504,6 +1504,76 @@ ul.errorlist {
     gap: 0.6rem;
 }
 
+.plan-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: grid;
+    place-items: center;
+    background: rgba(11, 26, 36, 0.44);
+    backdrop-filter: blur(10px);
+}
+
+.plan-loading-overlay[hidden] {
+    display: none !important;
+}
+
+.plan-loading-card {
+    width: min(32rem, calc(100% - 2rem));
+    padding: 1.8rem;
+    border: 1px solid rgba(12, 46, 70, 0.12);
+    border-radius: 28px;
+    background:
+        radial-gradient(circle at top right, rgba(201, 227, 238, 0.46), transparent 32%),
+        linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    box-shadow: 0 26px 70px rgba(11, 26, 36, 0.2);
+    display: grid;
+    gap: 0.8rem;
+    text-align: center;
+}
+
+.plan-loading-card h2 {
+    margin: 0;
+}
+
+.plan-loading-card p {
+    margin: 0;
+}
+
+.plan-loading-spinner {
+    width: 3.25rem;
+    height: 3.25rem;
+    margin: 0 auto 0.2rem;
+    border-radius: 50%;
+    border: 4px solid rgba(11, 74, 114, 0.14);
+    border-top-color: #0b4a72;
+    animation: plan-spin 0.9s linear infinite;
+}
+
+.plan-loading-timer {
+    font-weight: 800;
+    color: #0b4a72;
+}
+
+.plan-loading-steps {
+    display: grid;
+    gap: 0.45rem;
+    color: #34556b;
+    font-size: 0.94rem;
+}
+
+.plan-loading-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.4rem;
+}
+
+@keyframes plan-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .gantt-board {
     display: grid;
     gap: 1rem;
@@ -1547,6 +1617,20 @@ ul.errorlist {
     box-shadow: 0 16px 40px rgba(13, 40, 56, 0.08);
 }
 
+.gantt-card--active {
+    border-color: rgba(31, 110, 74, 0.24);
+    box-shadow: 0 18px 40px rgba(31, 110, 74, 0.12);
+}
+
+.gantt-card--done {
+    border-color: rgba(15, 118, 110, 0.22);
+}
+
+.gantt-card--risk {
+    border-color: rgba(177, 61, 37, 0.26);
+    box-shadow: 0 18px 40px rgba(177, 61, 37, 0.1);
+}
+
 .gantt-card strong {
     display: block;
     margin-bottom: 0.45rem;
@@ -1557,6 +1641,76 @@ ul.errorlist {
 .gantt-card p {
     margin: 0.18rem 0;
     color: #34556b;
+}
+
+.gantt-status {
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border: 1px solid rgba(12, 46, 70, 0.12);
+}
+
+.gantt-status--planned {
+    background: rgba(227, 238, 246, 0.88);
+    color: #31566f;
+}
+
+.gantt-status--active {
+    background: rgba(225, 242, 229, 0.95);
+    color: #1f6e4a;
+}
+
+.gantt-status--done {
+    background: rgba(218, 246, 240, 0.95);
+    color: #0f766e;
+}
+
+.gantt-status--risk {
+    background: rgba(250, 231, 226, 0.95);
+    color: #b13d25;
+}
+
+.execution-table-wrap {
+    overflow-x: auto;
+    border: 1px solid rgba(12, 46, 70, 0.12);
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+}
+
+.execution-table {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: collapse;
+}
+
+.execution-table th,
+.execution-table td {
+    padding: 0.7rem;
+    border-bottom: 1px solid rgba(12, 46, 70, 0.08);
+    vertical-align: top;
+}
+
+.execution-table th {
+    position: sticky;
+    top: 0;
+    background: #eff7fb;
+    color: #0b4a72;
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    z-index: 1;
+}
+
+.execution-field {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.execution-row-add {
+    margin-top: 0.85rem;
 }
 
 .compare-metric-grid {

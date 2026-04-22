@@ -304,6 +304,27 @@ class MarketingPlan(TimeStampedModel):
         return self.title
 
 
+class FinalMarketingReport(TimeStampedModel):
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="final_marketing_reports",
+    )
+    title = models.CharField(max_length=255)
+    chronology_mode = models.CharField(max_length=64, default="oldest_first")
+    ordered_plan_ids = models.JSONField(default=list, blank=True)
+    executive_summary = models.TextField(blank=True)
+    report_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+
 class GuidelineDocument(TimeStampedModel):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True, blank=True)

@@ -35,7 +35,7 @@
     </section>
 
     <section class="marketing-builder-layout">
-        <form method="post" class="workspace-panel marketing-builder-form">
+        <form method="post" class="workspace-panel marketing-builder-form" id="marketing-plan-form">
             {% csrf_token %}
 
             {% if form.non_field_errors %}
@@ -243,7 +243,7 @@
                     <h3>Ready to generate</h3>
                     <p>The plan will combine your strategist note, selected market context, optional product context, and chosen Gemini model into one payload.</p>
                 </div>
-                <button class="button button-primary" type="submit">Generate Marketing Plan</button>
+                <button class="button button-primary" id="marketing-plan-submit" type="submit">Generate Marketing Plan</button>
             </div>
         </form>
 
@@ -278,5 +278,98 @@
             </article>
         </aside>
     </section>
+
+    <div class="plan-loading-overlay" id="plan-loading-overlay" hidden>
+        <div class="plan-loading-card">
+            <div class="plan-loading-spinner" aria-hidden="true"></div>
+            <span class="eyebrow">Generating Plan</span>
+            <h2>We are building your plan now.</h2>
+            <p id="plan-loading-status">Preparing the strategy payload and sending it to Gemini.</p>
+            <div class="plan-loading-timer" id="plan-loading-timer">Elapsed: 0s</div>
+            <div class="plan-loading-steps">
+                <span>1. Packaging context</span>
+                <span>2. Calling the model</span>
+                <span>3. Validating structured output</span>
+                <span>4. Saving the plan</span>
+            </div>
+            <p class="field-hint">A brief plan should normally be much faster than several minutes. If this keeps hanging, the selected model may be too slow for the current payload.</p>
+            <div class="plan-loading-actions">
+                <button type="button" class="button button-secondary" id="plan-loading-close">Close Overlay</button>
+            </div>
+        </div>
+    </div>
 </main>
+<script>
+    (function () {
+        const form = document.getElementById("marketing-plan-form");
+        const overlay = document.getElementById("plan-loading-overlay");
+        const submitButton = document.getElementById("marketing-plan-submit");
+        const status = document.getElementById("plan-loading-status");
+        const timer = document.getElementById("plan-loading-timer");
+        const closeButton = document.getElementById("plan-loading-close");
+        if (!form || !overlay || !submitButton || !status || !timer || !closeButton) return;
+
+        let overlayTimer = null;
+        let submitted = false;
+
+        const hideOverlay = () => {
+            overlay.hidden = true;
+            overlay.setAttribute("aria-hidden", "true");
+            if (overlayTimer) {
+                window.clearInterval(overlayTimer);
+                overlayTimer = null;
+            }
+            submitButton.disabled = false;
+        };
+
+        const showOverlay = () => {
+            overlay.hidden = false;
+            overlay.setAttribute("aria-hidden", "false");
+        };
+
+        hideOverlay();
+        window.addEventListener("pageshow", hideOverlay);
+        document.addEventListener("visibilitychange", () => {
+            if (!submitted && document.visibilityState === "visible") {
+                hideOverlay();
+            }
+        });
+        closeButton.addEventListener("click", hideOverlay);
+        overlay.addEventListener("click", (event) => {
+            if (event.target === overlay) {
+                hideOverlay();
+            }
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                hideOverlay();
+            }
+        });
+
+        const stepMessages = [
+            "Preparing the strategy payload and sending it to Gemini.",
+            "Gemini is working through the market context and plan structure.",
+            "Still generating. We will validate the structured output before saving.",
+            "This is taking longer than expected for a brief plan. The selected model may be slow.",
+        ];
+
+        form.addEventListener("submit", (event) => {
+            if (!event.isTrusted) return;
+            submitted = true;
+            showOverlay();
+            submitButton.disabled = true;
+            let elapsed = 0;
+            status.textContent = stepMessages[0];
+            timer.textContent = "Elapsed: 0s";
+
+            overlayTimer = window.setInterval(() => {
+                elapsed += 1;
+                timer.textContent = `Elapsed: ${elapsed}s`;
+                if (elapsed >= 15 && elapsed < 45) status.textContent = stepMessages[1];
+                if (elapsed >= 45 && elapsed < 120) status.textContent = stepMessages[2];
+                if (elapsed >= 120) status.textContent = stepMessages[3];
+            }, 1000);
+        });
+    }());
+</script>
 {% endblock %}

@@ -11,6 +11,7 @@
             <p class="lead">These plans can work with or without product context, which is the part you were asking for.</p>
             <div class="hero-actions">
                 <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_builder' %}">New Marketing Plan</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:final_marketing_report_builder' %}">Build Final Report</a>
             </div>
         </div>
     </section>
@@ -26,6 +27,7 @@
                             </div>
                             <div class="workspace-card__badges">
                                 <span class="status-pill">{% if plan.include_product_context %}With Product Context{% else %}Without Product Context{% endif %}</span>
+                                <span class="status-pill">{{ plan.status|title }}</span>
                             </div>
                         </div>
                         <div class="workspace-card__stats">
@@ -35,7 +37,7 @@
                         </div>
                         <div class="workspace-card__profile">
                             <strong>Executive Summary</strong>
-                            <p>{{ plan.report_json.section_overrides.executive_summary_override|default:plan.plan_json.narrative_summary|default:plan.executive_summary|truncatechars:280 }}</p>
+                            <p>{{ plan.display_summary|truncatechars:280 }}</p>
                         </div>
                     </div>
                     <div class="workspace-card__actions">

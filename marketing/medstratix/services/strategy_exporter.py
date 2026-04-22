@@ -1008,3 +1008,142 @@ def build_marketing_plan_pdf(plan, latest_log):
     doc.build(story)
     buffer.seek(0)
     return buffer
+
+
+def build_final_marketing_report_docx(report):
+    try:
+        from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Pt, RGBColor
+    except ModuleNotFoundError as exc:
+        raise ValueError("python-docx is not installed. Please install requirements.txt before exporting Word files.") from exc
+
+    payload = report.report_json or {}
+    ordered_sections = payload.get("ordered_plans", []) or []
+
+    document = Document()
+    styles = document.styles
+    styles["Normal"].font.name = "Aptos"
+    styles["Normal"].font.size = Pt(10.5)
+    styles["Title"].font.name = "Aptos Display"
+    styles["Title"].font.size = Pt(24)
+
+    accent = RGBColor(11, 74, 114)
+    title = document.add_paragraph(style="Title")
+    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    title_run = title.add_run(report.title or "Final Marketing Report")
+    title_run.font.color.rgb = accent
+
+    document.add_paragraph(report.executive_summary or payload.get("combined_summary") or "No combined summary available.")
+    _add_key_value(document, "Chronology Mode", stringify_plan_value(report.chronology_mode))
+    _add_key_value(document, "Included Plans", str(len(report.ordered_plan_ids or [])))
+
+    strategist_note = payload.get("strategist_note", "")
+    if strategist_note:
+        document.add_heading("Strategist Note", level=1)
+        document.add_paragraph(stringify_plan_value(strategist_note))
+
+    document.add_heading("Chronology", level=1)
+    for index, item in enumerate(ordered_sections, start=1):
+        document.add_heading(f"{index}. {stringify_plan_value(item.get('title'))}", level=2)
+        _add_key_value(document, "Plan Type", stringify_plan_value(item.get("output_style_label")))
+        _add_key_value(document, "Created", stringify_plan_value(item.get("created_at")))
+        _add_key_value(document, "Summary", stringify_plan_value(item.get("summary")))
+        for section in item.get("sections", []):
+            document.add_heading(stringify_plan_value(section.get("label") or "Section"), level=3)
+            value = section.get("value")
+            if isinstance(value, dict):
+                for key, item_value in value.items():
+                    _add_key_value(document, key.replace("_", " ").title(), stringify_plan_value(item_value) or "N/A")
+            elif isinstance(value, list):
+                if value and all(isinstance(entry, dict) for entry in value):
+                    for entry_index, entry in enumerate(value, start=1):
+                        document.add_paragraph(f"Item {entry_index}", style="List Bullet")
+                        for entry_key, entry_value in entry.items():
+                            _add_key_value(document, entry_key.replace("_", " ").title(), stringify_plan_value(entry_value) or "N/A")
+                else:
+                    _add_bullets(document, [stringify_plan_value(entry) for entry in value])
+            else:
+                document.add_paragraph(stringify_plan_value(value) or "Not provided.")
+
+    buffer = BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
+def build_final_marketing_report_pdf(report):
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_LEFT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
+    except ModuleNotFoundError as exc:
+        raise ValueError("reportlab is not installed. Please install requirements.txt before exporting PDF files.") from exc
+
+    payload = report.report_json or {}
+    ordered_sections = payload.get("ordered_plans", []) or []
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("FinalReportTitle", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=22, textColor=colors.HexColor("#0b4a72"), alignment=TA_LEFT)
+    heading_style = ParagraphStyle("FinalReportHeading", parent=styles["Heading1"], fontName="Helvetica-Bold", fontSize=14, textColor=colors.HexColor("#0b4a72"))
+    subheading_style = ParagraphStyle("FinalReportSubheading", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor("#12384f"))
+    body_style = ParagraphStyle("FinalReportBody", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.5, leading=13)
+    bullet_style = ParagraphStyle("FinalReportBullet", parent=body_style, leftIndent=16)
+
+    story = []
+
+    def add_heading(text, style):
+        story.append(Paragraph(text, style))
+        story.append(Spacer(1, 0.12 * inch))
+
+    def add_body(text, style):
+        story.append(Paragraph(text, style))
+        story.append(Spacer(1, 0.08 * inch))
+
+    def add_bullets(items):
+        if not items:
+            add_body("None", body_style)
+            return
+        flow = ListFlowable([ListItem(Paragraph(stringify_plan_value(item), bullet_style)) for item in items], bulletType="bullet")
+        story.append(flow)
+        story.append(Spacer(1, 0.08 * inch))
+
+    add_heading(report.title or "Final Marketing Report", title_style)
+    add_body(report.executive_summary or payload.get("combined_summary") or "No combined summary available.", body_style)
+    add_body(f"Chronology Mode: {stringify_plan_value(report.chronology_mode)}", body_style)
+    add_body(f"Included Plans: {len(report.ordered_plan_ids or [])}", body_style)
+
+    strategist_note = payload.get("strategist_note", "")
+    if strategist_note:
+        add_heading("Strategist Note", heading_style)
+        add_body(stringify_plan_value(strategist_note), body_style)
+
+    add_heading("Chronology", heading_style)
+    for index, item in enumerate(ordered_sections, start=1):
+        add_heading(f"{index}. {stringify_plan_value(item.get('title'))}", subheading_style)
+        add_body(f"Plan Type: {stringify_plan_value(item.get('output_style_label'))}", body_style)
+        add_body(f"Created: {stringify_plan_value(item.get('created_at'))}", body_style)
+        add_body(f"Summary: {stringify_plan_value(item.get('summary'))}", body_style)
+        for section in item.get("sections", []):
+            add_heading(stringify_plan_value(section.get("label") or "Section"), body_style)
+            value = section.get("value")
+            if isinstance(value, dict):
+                for key, item_value in value.items():
+                    add_body(f"{key.replace('_', ' ').title()}: {stringify_plan_value(item_value)}", body_style)
+            elif isinstance(value, list):
+                if value and all(isinstance(entry, dict) for entry in value):
+                    for entry in value:
+                        add_bullets([f"{entry_key.replace('_', ' ').title()}: {stringify_plan_value(entry_value)}" for entry_key, entry_value in entry.items()])
+                else:
+                    add_bullets(value)
+            else:
+                add_body(stringify_plan_value(value), body_style)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=42, leftMargin=42, topMargin=50, bottomMargin=40)
+    doc.build(story)
+    buffer.seek(0)
+    return buffer

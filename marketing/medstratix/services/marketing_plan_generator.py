@@ -2,19 +2,91 @@ import json
 import logging
 import os
 
-from google import genai
-
 from .marketing_plan_schema import build_marketing_plan_blueprint, marketing_plan_focus_text
 from .strategy_generator import (
     _call_gemini_with_retry,
     _estimate_cost_usd,
     _extract_json_payload,
+    _make_genai_client,
     _response_text,
     _usage_metadata,
 )
 
 
 logger = logging.getLogger("medstratix.marketing_plan")
+
+
+def _marketing_plan_timeout_ms() -> int:
+    raw = (os.getenv("GEMINI_MARKETING_PLAN_TIMEOUT_MS", os.getenv("GEMINI_TIMEOUT_MS", "45000")) or "45000").strip()
+    try:
+        return max(int(raw), 10000)
+    except ValueError:
+        return 45000
+
+
+def _marketing_plan_max_attempts() -> int:
+    raw = (os.getenv("GEMINI_MARKETING_PLAN_MAX_ATTEMPTS", "1") or "1").strip()
+    try:
+        return max(int(raw), 1)
+    except ValueError:
+        return 1
+
+
+def _trim_list(values, max_items: int):
+    return list((values or [])[:max_items])
+
+
+def _compact_context_for_plan_type(
+    *,
+    output_style: str,
+    market_accounts_summary: list[dict],
+    stakeholder_contexts: list[dict] | None,
+    your_panel_summary: dict | None,
+    competitor_panel_summary: dict | None,
+    comparison_summary: dict | None,
+    source_plan_contexts: list[dict] | None,
+) -> dict:
+    if output_style != "brief_plan":
+        return {
+            "market_accounts_summary": market_accounts_summary,
+            "stakeholder_contexts": stakeholder_contexts or [],
+            "your_panel_summary": your_panel_summary or {},
+            "competitor_panel_summary": competitor_panel_summary or {},
+            "comparison_summary": comparison_summary or {},
+            "source_plan_contexts": source_plan_contexts or [],
+        }
+
+    compact_source_plans = []
+    for item in _trim_list(source_plan_contexts or [], 3):
+        compact_source_plans.append(
+            {
+                "title": item.get("title", ""),
+                "output_style_label": item.get("output_style_label", ""),
+                "executive_summary": item.get("executive_summary", {}),
+                "human_section_overrides": item.get("human_section_overrides", {}),
+            }
+        )
+
+    def _compact_panel_summary(panel_summary: dict | None) -> dict:
+        panel_summary = panel_summary or {}
+        return {
+            "name": panel_summary.get("name", ""),
+            "company_name": panel_summary.get("company_name", ""),
+            "sample_type_label": panel_summary.get("sample_type_label", ""),
+            "price_label": panel_summary.get("price_label", ""),
+            "tat_label": panel_summary.get("tat_label", ""),
+            "panel_count": panel_summary.get("panel_count", 0),
+            "panel_names": panel_summary.get("panel_names", [])[:6],
+        }
+
+    return {
+        "market_accounts_summary": _trim_list(market_accounts_summary or [], 4),
+        "stakeholder_contexts": _trim_list(stakeholder_contexts or [], 8),
+        "your_panel_summary": _compact_panel_summary(your_panel_summary),
+        "competitor_panel_summary": _compact_panel_summary(competitor_panel_summary),
+        "comparison_summary": comparison_summary or {},
+        "source_plan_contexts": compact_source_plans,
+    }
 
 
 def _market_reality_guidance(geography: str, strategist_note: str) -> str:
@@ -36,7 +108,7 @@ Market-specific emphasis:
 """.strip()
 
 
-def generate_marketing_plan(
+def build_marketing_plan_request(
     *,
     title: str,
     objective: str,
@@ -54,11 +126,16 @@ def generate_marketing_plan(
     source_plan_contexts: list[dict] | None = None,
     model_name_override: str = "",
 ) -> dict:
-    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY is not configured in the environment.")
-
     model_name = (model_name_override or os.getenv("GEMINI_MODEL", "gemini-2.5-pro")).strip() or "gemini-2.5-pro"
+    compact_context = _compact_context_for_plan_type(
+        output_style=output_style,
+        market_accounts_summary=market_accounts_summary,
+        stakeholder_contexts=stakeholder_contexts,
+        your_panel_summary=your_panel_summary,
+        competitor_panel_summary=competitor_panel_summary,
+        comparison_summary=comparison_summary,
+        source_plan_contexts=source_plan_contexts,
+    )
 
     prompt = f"""
 You are building a strategic oncology marketing plan for MedStratix.
@@ -95,22 +172,22 @@ Sales expectation guardrails:
 {_market_reality_guidance(geography, strategist_note)}
 
 Market account summary:
-{json.dumps(market_accounts_summary, indent=2)}
+{json.dumps(compact_context["market_accounts_summary"], indent=2)}
 
 Stakeholder context:
-{json.dumps(stakeholder_contexts or [], indent=2)}
+{json.dumps(compact_context["stakeholder_contexts"], indent=2)}
 
 Your product context:
-{json.dumps(your_panel_summary or {}, indent=2)}
+{json.dumps(compact_context["your_panel_summary"], indent=2)}
 
 Competitor context:
-{json.dumps(competitor_panel_summary or {}, indent=2)}
+{json.dumps(compact_context["competitor_panel_summary"], indent=2)}
 
 Comparison summary:
-{json.dumps(comparison_summary or {}, indent=2)}
+{json.dumps(compact_context["comparison_summary"], indent=2)}
 
 Source plan contexts:
-{json.dumps(source_plan_contexts or [], indent=2)}
+{json.dumps(compact_context["source_plan_contexts"], indent=2)}
 
 Make the plan specific enough to support:
 - executive decision-making
@@ -138,9 +215,75 @@ If you cannot fully calculate spreadsheet_model or gantt_data precisely:
 - never omit the field just because some numbers or dates are estimated
 """.strip()
 
-    logger.info("Generating marketing plan title=%s model=%s output_style=%s", title, model_name, output_style)
-    client = genai.Client(api_key=api_key)
-    response = _call_gemini_with_retry(client=client, model_name=model_name, prompt=prompt)
+    timeout_ms = _marketing_plan_timeout_ms()
+    max_attempts = _marketing_plan_max_attempts()
+    return {
+        "model_name": model_name,
+        "prompt_text": prompt,
+        "timeout_ms": timeout_ms,
+        "max_attempts": max_attempts,
+    }
+
+
+def generate_marketing_plan(
+    *,
+    title: str,
+    objective: str,
+    geography: str,
+    disease_focus: str,
+    output_style: str,
+    include_product_context: bool,
+    sales_expectation: dict | None,
+    strategist_note: str,
+    market_accounts_summary: list[dict],
+    stakeholder_contexts: list[dict] | None,
+    your_panel_summary: dict | None,
+    competitor_panel_summary: dict | None,
+    comparison_summary: dict | None,
+    source_plan_contexts: list[dict] | None = None,
+    model_name_override: str = "",
+) -> dict:
+    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY is not configured in the environment.")
+
+    request_payload = build_marketing_plan_request(
+        title=title,
+        objective=objective,
+        geography=geography,
+        disease_focus=disease_focus,
+        output_style=output_style,
+        include_product_context=include_product_context,
+        sales_expectation=sales_expectation,
+        strategist_note=strategist_note,
+        market_accounts_summary=market_accounts_summary,
+        stakeholder_contexts=stakeholder_contexts,
+        your_panel_summary=your_panel_summary,
+        competitor_panel_summary=competitor_panel_summary,
+        comparison_summary=comparison_summary,
+        source_plan_contexts=source_plan_contexts,
+        model_name_override=model_name_override,
+    )
+    model_name = request_payload["model_name"]
+    prompt = request_payload["prompt_text"]
+    timeout_ms = request_payload["timeout_ms"]
+    max_attempts = request_payload["max_attempts"]
+    logger.info(
+        "Generating marketing plan title=%s model=%s output_style=%s timeout_ms=%s max_attempts=%s",
+        title,
+        model_name,
+        output_style,
+        timeout_ms,
+        max_attempts,
+    )
+    client = _make_genai_client(api_key, timeout_ms=timeout_ms)
+    response = _call_gemini_with_retry(
+        client=client,
+        model_name=model_name,
+        prompt=prompt,
+        max_attempts=max_attempts,
+        timeout_ms=timeout_ms,
+    )
     text = _response_text(response)
     payload = _extract_json_payload(text)
     usage = _usage_metadata(response)

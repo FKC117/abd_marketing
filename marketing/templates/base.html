@@ -33,11 +33,12 @@
                             <a class="{% if '/workspace/market/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:market_workspace' %}">Market</a>
                         </div>
                     </details>
-                    <details class="nav-dropdown" {% if '/workspace/strategies/' in current_path or '/workspace/marketing-plans/' in current_path %}open{% endif %}>
+                    <details class="nav-dropdown" {% if '/workspace/strategies/' in current_path or '/workspace/marketing-plans/' in current_path or '/workspace/final-reports/' in current_path %}open{% endif %}>
                         <summary>Strategy</summary>
                         <div class="nav-dropdown__menu">
                             <a class="{% if '/workspace/strategies/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:strategy_workspace' %}">Strategies</a>
                             <a class="{% if '/workspace/marketing-plans/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:marketing_plan_workspace' %}">Marketing Plans</a>
+                            <a class="{% if '/workspace/final-reports/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:final_marketing_report_workspace' %}">Final Reports</a>
                         </div>
                     </details>
                     <div class="site-nav__actions">
@@ -62,5 +63,35 @@
         </div>
     {% endif %}
     {% block content %}{% endblock %}
+    <script>
+        (function () {
+            const dropdowns = Array.from(document.querySelectorAll(".nav-dropdown"));
+            if (!dropdowns.length) return;
+
+            dropdowns.forEach((dropdown) => {
+                dropdown.addEventListener("toggle", () => {
+                    if (!dropdown.open) return;
+                    dropdowns.forEach((other) => {
+                        if (other !== dropdown) other.open = false;
+                    });
+                });
+            });
+
+            document.addEventListener("click", (event) => {
+                if (dropdowns.some((dropdown) => dropdown.contains(event.target))) return;
+                dropdowns.forEach((dropdown) => {
+                    dropdown.open = false;
+                });
+            });
+
+            document.querySelectorAll(".nav-dropdown__menu a").forEach((link) => {
+                link.addEventListener("click", () => {
+                    dropdowns.forEach((dropdown) => {
+                        dropdown.open = false;
+                    });
+                });
+            });
+        }());
+    </script>
 </body>
 </html>

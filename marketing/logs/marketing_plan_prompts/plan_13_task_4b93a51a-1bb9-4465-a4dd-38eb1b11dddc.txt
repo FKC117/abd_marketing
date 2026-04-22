@@ -1,0 +1,248 @@
+You are building a strategic oncology marketing plan for MedStratix.
+
+Return valid JSON only.
+Do not wrap the JSON in markdown fences.
+Do not include commentary before or after the JSON.
+
+This plan type is: detailed_plan
+Plan-type focus:
+A fuller strategic blueprint with commercial, clinical, campaign, and financial planning depth.
+
+Required top-level keys:
+- title
+- executive_summary
+- market_research
+- swot
+- target_audience_personas
+- unique_value_proposition
+- product_pricing_strategy
+- promotional_channel_strategy
+- sales_compliance_plan
+- execution_roadmap
+- revenue_model
+- campaign_plan
+- follow_up_control_kpis
+- sales_pitch
+- recommended_next_steps
+
+Detailed schema rules:
+- `executive_summary` must include:
+  - mission
+  - value_gap
+  - core_goal
+  - summary
+
+- `market_research` must include:
+  - market_landscape
+  - competitor_audit
+  - key_constraints
+  - market_distortion
+  - opportunity_map
+
+- `swot` must include:
+  - strengths
+  - weaknesses
+  - opportunities
+  - threats
+  Each must be a list of strings.
+
+- `target_audience_personas` must be a list of at least 3 objects with:
+  - persona
+  - role
+  - priority
+  - motivations
+  - barriers
+  - engagement_approach
+
+- `unique_value_proposition` must include:
+  - headline
+  - proof_points
+  - why_now
+
+- `product_pricing_strategy` must include:
+  - portfolio_strategy
+  - pricing_logic
+  - access_strategy
+  - premium_justification
+
+- `promotional_channel_strategy` must include:
+  - medical_affairs
+  - academic_partnerships
+  - digital_content
+  - field_activation
+  - channel_mix_summary
+
+- `sales_compliance_plan` must include:
+  - anti_corruption_play
+  - institutional_strategy
+  - logistics_management
+  - objection_handling
+  - compliance_guardrails
+
+- `execution_roadmap` must be a list of at least 6 objects with:
+  - phase
+  - timeline
+  - owner
+  - priority
+  - deliverable
+  - success_metric
+
+- `revenue_model` must be a list of at least 3 objects with:
+  - period
+  - sample_volume_assumption
+  - pricing_context
+  - revenue_projection
+  - key_driver
+
+- `spreadsheet_model` must be a list of at least 3 objects with:
+  - row_type
+  - label
+  - period
+  - formula_logic
+  - numeric_value
+  - notes
+
+- `gantt_data` must be a list of at least 6 objects with:
+  - task
+  - phase
+  - owner
+  - start_period
+  - end_period
+  - dependency
+  - status_signal
+
+- `campaign_plan` must be a list of at least 10 objects with:
+  - name
+  - audience
+  - objective
+  - message
+  - channel_mix
+  - timeline
+  - call_to_action
+  - kpi
+
+- `follow_up_control_kpis` must include:
+  - adoption_rate
+  - retention_rate
+  - clinical_impact
+  - account_growth
+  - campaign_effectiveness
+
+- `sales_pitch` must include:
+  - elevator_pitch
+  - clinician_pitch
+  - institution_pitch
+
+- `recommended_next_steps` must be a list of concrete actions.
+
+Commercial rules:
+- Keep the plan commercially realistic, field-executable, and compliant.
+- Do not recommend bribery, kickbacks, unethical inducement schemes, or covert referral payments.
+- If the market has corruption or referral distortion pressure, address it through ethical counter-strategy, institutional contracting, education, evidence, service quality, and compliance-safe positioning.
+- The plan should read like something a serious oncology commercial team could actually use.
+
+Plan title: Brief_plan - Next Plan
+Objective: Establish the core strategic narrative and high-level mission for launching CeGaT's NGS panels in Bangladesh. Use the existing competitive intelligence to define a 'German Shield' value proposition that justifies a 5x price premium through absolute precision and zero-kickback ethical integrity. The output should be a concise summary of our 'Where to Play' and 'How to Win' logic.
+Geography: Bangladesh
+Disease focus: All types of Solid Tumour
+Output style: detailed_plan
+Include product context: no
+
+Strategist note:
+Focus on the 'German quality' brand prestige as our primary weapon against local low-cost competitors. We must strictly avoid price wars and instead lean into the 'cost of inaccuracy'—explaining how a cheap test is actually the most expensive mistake if it leads to the wrong treatment
+
+Sales expectation guardrails:
+{
+  "planning_horizon": "",
+  "revenue_guardrail_note": "",
+  "expected_monthly_samples": "",
+  "expected_year_one_revenue_bdt": "",
+  "expected_quarterly_revenue_bdt": ""
+}
+
+Market-specific emphasis:
+- reflect high price sensitivity
+- account for biological sample shipping or cross-border logistics hurdles
+- treat unethical competitor referral pressure as a market distortion and compliance risk
+- recommend compliant counter-strategies only
+- make campaigns and field actions realistic for Bangladesh oncology institutions
+
+Market account summary:
+[]
+
+Stakeholder context:
+[]
+
+Your product context:
+{}
+
+Competitor context:
+{}
+
+Comparison summary:
+{}
+
+Source plan contexts:
+[
+  {
+    "id": 10,
+    "swot": {},
+    "title": "Brief_plan",
+    "geography": "Bangladesh",
+    "sales_pitch": {},
+    "output_style": "brief_plan",
+    "campaign_plan": [],
+    "disease_focus": "All types of Solid Tumour",
+    "market_research": {},
+    "executive_summary": {
+      "mission": "To establish CeGaT's NGS panels as the undisputed gold standard for oncology diagnostics in Bangladesh, empowering clinicians to make the most precise treatment decisions with a partner they can trust.",
+      "summary": "This plan outlines a focused strategy to launch CeGaT's NGS panels in Bangladesh. By targeting evidence-driven oncologists and institutions, we will leverage a 'German Shield' value proposition to command a price premium. Our core tactics involve KOL engagement, clinical education on the 'cost of inaccuracy,' and establishing compliant institutional partnerships, directly countering unethical competitor practices through a superior, verifiable value proposition.",
+      "core_goal": "To successfully launch and justify a premium price point by positioning CeGaT as the 'German Shield'\u2014a symbol of uncompromising quality, accuracy, and ethical partnership, thereby capturing the high-value segment of the solid tumour testing market.",
+      "value_gap": "The Bangladeshi oncology market lacks access to globally accredited, high-precision NGS testing offered with absolute ethical integrity, leaving a void filled by low-cost, potentially unreliable alternatives and market-distorting referral practices."
+    },
+    "sales_expectation": {
+      "planning_horizon": "",
+      "revenue_guardrail_note": "",
+      "expected_monthly_samples": "",
+      "expected_year_one_revenue_bdt": "",
+      "expected_quarterly_revenue_bdt": ""
+    },
+    "output_style_label": "Brief Marketing Plan",
+    "recommended_next_steps": [
+      "Finalize the BDT price list and develop a 'Cost of Inaccuracy' calculator tool for the field team.",
+      "Develop and deploy a mandatory training module for all commercial staff on the 'German Shield' messaging and compliant, ethical counter-positioning.",
+      "Secure and audit a primary and secondary cold-chain logistics partner for reliable sample shipment from major cities in Bangladesh to Germany.",
+      "Map and schedule initial engagement meetings with the top 10 high-priority, ethically-aligned KOLs, starting with Prof. Dr. Mofazzel Hossain.",
+      "Draft a template for the 'Institutional Compliance & Quality Partnership Program' and submit for legal and compliance review.",
+      "Create a clinical evidence package with case studies showcasing the impact of comprehensive, accurate NGS results on treatment decisions for solid tumours."
+    ],
+    "human_section_overrides": {},
+    "target_audience_personas": [],
+    "unique_value_proposition": {}
+  }
+]
+
+Make the plan specific enough to support:
+- executive decision-making
+- field execution
+- medical affairs activation
+- compliant commercial positioning
+- campaign planning
+- sales messaging
+- spreadsheet export readiness through structured timelines, revenue assumptions, and action lists whenever relevant to the selected plan type
+- include spreadsheet-ready rows for revenue or execution tracking when the selected plan type supports it
+- include gantt-ready task rows with phase, owner, start_period, end_period, dependency, and status_signal when the selected plan type supports it
+- treat the user-provided sales expectation guardrails as the primary planning anchor for volume and revenue estimates
+- do not inflate sample volume or revenue projections beyond those guardrails unless you explicitly explain why a higher case is justified
+- do not invent KOL names or doctor identities
+- only use named people if they are explicitly present in verified stakeholder context
+- if stakeholder input is unverified, refer to that person only by segment, role, or specialty
+
+If source plan contexts are provided:
+- treat them as prior strategic thinking that should be reused and refined, not ignored
+- prioritize any human_section_overrides inside those source plans over earlier generated text
+- build continuity from the source plans instead of starting from zero
+
+If you cannot fully calculate spreadsheet_model or gantt_data precisely:
+- still return the best structured draft rows possible from the plan logic
+- never omit the field just because some numbers or dates are estimated
