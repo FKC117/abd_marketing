@@ -6,59 +6,218 @@
 <main class="page-shell">
     <section class="workspace-stage workspace-stage--dashboard">
         <div class="workspace-stage__hero">
-            <span class="eyebrow">Marketing Plan Detail</span>
+            <span class="eyebrow">{{ plan_style_label }}</span>
             <h1 class="workspace-title">{{ plan.title }}</h1>
-            <p class="lead">{{ plan.executive_summary }}</p>
+            <p class="lead">{{ plan_summary|default:"Not provided." }}</p>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'docx' %}">Export Word</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'pdf' %}">Export PDF</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'xlsx' %}">Export Excel</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'csv' %}">Export CSV</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'json' %}">Export JSON</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_gantt' plan.pk %}">Open Gantt</a>
+                {% for next_link in next_plan_links %}
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_builder' %}?source_plans={{ plan.pk }}&output_style={{ next_link.style }}">{{ next_link.label }}</a>
+                {% endfor %}
+            </div>
         </div>
     </section>
+
     <section class="dashboard-metrics compare-metric-grid">
-        <article class="metric-card"><span>Output Style</span><strong>{{ plan.output_style }}</strong></article>
-        <article class="metric-card"><span>Geography</span><strong>{{ plan.geography|default:"Not specified" }}</strong></article>
-        <article class="metric-card"><span>Disease Focus</span><strong>{{ plan.disease_focus|default:"Broad oncology" }}</strong></article>
+        <article class="metric-card"><span>Plan Type</span><strong>{{ plan_style_label }}</strong></article>
+        <article class="metric-card"><span>Sections</span><strong>{{ plan_highlights.section_count }}</strong></article>
+        <article class="metric-card"><span>Campaign Rows</span><strong>{{ plan_highlights.campaign_count }}</strong></article>
+        <article class="metric-card"><span>Timeline Rows</span><strong>{{ plan_highlights.timeline_count }}</strong></article>
+        <article class="metric-card"><span>Revenue Rows</span><strong>{{ plan_highlights.revenue_row_count }}</strong></article>
         <article class="metric-card"><span>Model</span><strong>{{ plan.llm_model|default:"N/A" }}</strong></article>
     </section>
+
+    {% if source_plans %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Plan Lineage</span>
+                <h2>This plan was built from earlier plan context.</h2>
+            </div>
+            <div class="gene-chip-row">
+                {% for source_plan in source_plans %}
+                    <span class="gene-chip">{{ source_plan.title }} | {{ source_plan.output_style_label }}</span>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
     {% if plan.strategist_note %}
         <section class="workspace-panel detail-panel">
-            <div class="section-heading"><span class="eyebrow">Strategist Note</span><h2>Your direct instruction for this plan.</h2></div>
+            <div class="section-heading">
+                <span class="eyebrow">Strategist Note</span>
+                <h2>Your instruction that shaped this plan.</h2>
+            </div>
             <p class="strategy-text">{{ plan.strategist_note|linebreaksbr }}</p>
         </section>
     {% endif %}
-    <div class="detail-columns detail-columns--two">
-        <article class="detail-column">
-            <div class="detail-column__header"><h3>Market Landscape</h3><span>3</span></div>
-            <div class="detail-scroll">
-                <div class="mini-list">
-                    <div class="mini-item mini-item--catalog"><strong>Situation</strong><p>{{ plan.plan_json.market_landscape.situation }}</p></div>
-                    <div class="mini-item mini-item--catalog"><strong>Barriers</strong><p>{{ plan.plan_json.market_landscape.barriers }}</p></div>
-                    <div class="mini-item mini-item--catalog"><strong>Opportunities</strong><p>{{ plan.plan_json.market_landscape.opportunities }}</p></div>
-                </div>
+
+    {% if plan.report_json.market_accounts %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Market Context</span>
+                <h2>Accounts used to ground the plan.</h2>
             </div>
-        </article>
-        <article class="detail-column">
-            <div class="detail-column__header"><h3>Positioning</h3><span>3</span></div>
-            <div class="detail-scroll">
-                <div class="mini-list">
-                    <div class="mini-item mini-item--catalog"><strong>Core Message</strong><p>{{ plan.plan_json.positioning.core_message }}</p></div>
-                    <div class="mini-item mini-item--catalog"><strong>Differentiators</strong><p>{{ plan.plan_json.positioning.differentiators }}</p></div>
-                    <div class="mini-item mini-item--catalog"><strong>Proof Points</strong><p>{{ plan.plan_json.positioning.proof_points }}</p></div>
-                </div>
+            <div class="compare-company-list">
+                {% for account in plan.report_json.market_accounts %}
+                    <div class="compare-company-card">
+                        <strong>{{ account.name }}</strong>
+                        <p><strong>City:</strong> {{ account.city|default:"N/A" }}</p>
+                        <p><strong>Institution Type:</strong> {{ account.institution_type|default:"N/A" }}</p>
+                        <p><strong>Decision Style:</strong> {{ account.decision_style|default:"N/A" }}</p>
+                        <p><strong>Disease Focus:</strong> {{ account.disease_focus|default:"N/A" }}</p>
+                    </div>
+                {% endfor %}
             </div>
-        </article>
-    </div>
-    <section class="workspace-panel detail-panel">
-        <div class="section-heading"><span class="eyebrow">Campaign Plan</span><h2>Structured campaign ideas for this broader plan.</h2></div>
-        <div class="compare-company-list">
-            {% for campaign in plan.plan_json.campaign_plan %}
+        </section>
+    {% endif %}
+
+    {% if sales_expectation.planning_horizon or sales_expectation.expected_monthly_samples or sales_expectation.expected_quarterly_revenue_bdt or sales_expectation.expected_year_one_revenue_bdt or sales_expectation.revenue_guardrail_note %}
+        <section class="workspace-panel detail-panel">
+            <div class="section-heading">
+                <span class="eyebrow">Sales Guardrails</span>
+                <h2>Your own planning expectation used to constrain the model.</h2>
+            </div>
+            <div class="compare-company-list">
                 <div class="compare-company-card">
-                    <strong>{{ campaign.name }}</strong>
-                    <p><strong>Audience:</strong> {{ campaign.audience }}</p>
-                    <p><strong>Objective:</strong> {{ campaign.objective }}</p>
-                    <p><strong>Message:</strong> {{ campaign.message }}</p>
-                    <p><strong>Channels:</strong> {{ campaign.channel_mix }}</p>
-                    <p><strong>Timeline:</strong> {{ campaign.timeline }}</p>
+                    <strong>Planning Horizon</strong>
+                    <p>{{ sales_expectation.planning_horizon|default:"Not provided." }}</p>
                 </div>
-            {% endfor %}
+                <div class="compare-company-card">
+                    <strong>Expected Monthly Samples</strong>
+                    <p>{{ sales_expectation.expected_monthly_samples|default:"Not provided." }}</p>
+                </div>
+                <div class="compare-company-card">
+                    <strong>Expected Quarterly Revenue</strong>
+                    <p>{{ sales_expectation.expected_quarterly_revenue_bdt|default:"Not provided." }} BDT</p>
+                </div>
+                <div class="compare-company-card">
+                    <strong>Expected Year-One Revenue</strong>
+                    <p>{{ sales_expectation.expected_year_one_revenue_bdt|default:"Not provided." }} BDT</p>
+                </div>
+                <div class="compare-company-card">
+                    <strong>Revenue Guardrail Note</strong>
+                    <p>{{ sales_expectation.revenue_guardrail_note|default:"Not provided." }}</p>
+                </div>
+            </div>
+        </section>
+    {% endif %}
+
+    <section class="detail-columns detail-columns--two">
+        {% for section in plan_sections %}
+            <article class="detail-column">
+                <div class="detail-column__header">
+                    <h3>{{ section.label }}</h3>
+                    <span>{{ section.count }}</span>
+                </div>
+                <div class="detail-scroll">
+                    {% if section.kind == "object" %}
+                        <div class="mini-list">
+                            {% for key, value in section.value.items %}
+                                <div class="mini-item mini-item--catalog">
+                                    <strong>{{ key|cut:"_"|title|default:key }}</strong>
+                                    <p>{{ value }}</p>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% elif section.kind == "list" %}
+                        <div class="compare-company-list">
+                            {% for item in section.value %}
+                                {% if item.items %}
+                                    <div class="compare-company-card">
+                                        {% if item.name %}
+                                            <strong>{{ item.name }}</strong>
+                                        {% elif item.persona %}
+                                            <strong>{{ item.persona }}</strong>
+                                        {% elif item.phase %}
+                                            <strong>{{ item.phase }}</strong>
+                                        {% elif item.quarter %}
+                                            <strong>{{ item.quarter }}</strong>
+                                        {% elif item.horizon %}
+                                            <strong>{{ item.horizon }}</strong>
+                                        {% elif item.segment %}
+                                            <strong>{{ item.segment }}</strong>
+                                        {% elif item.stakeholder %}
+                                            <strong>{{ item.stakeholder }}</strong>
+                                        {% elif item.period %}
+                                            <strong>{{ item.period }}</strong>
+                                        {% else %}
+                                            <strong>Item {{ forloop.counter }}</strong>
+                                        {% endif %}
+                                        {% for item_key, item_value in item.items %}
+                                            {% if item_key != "name" and item_key != "persona" and item_key != "phase" and item_key != "quarter" and item_key != "horizon" and item_key != "segment" and item_key != "stakeholder" and item_key != "period" %}
+                                                <p><strong>{{ item_key|cut:"_"|title }}:</strong> {{ item_value }}</p>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="mini-item mini-item--catalog">
+                                        <p>{{ item }}</p>
+                                    </div>
+                                {% endif %}
+                            {% empty %}
+                                <div class="compare-company-card"><p>No items saved.</p></div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="mini-item mini-item--catalog">
+                            <p>{{ section.value }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </article>
+        {% endfor %}
+    </section>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Human Overrides</span>
+            <h2>Refine the plan and reuse those edits in the next generation.</h2>
         </div>
+        <form method="post" class="styled-form">
+            {% csrf_token %}
+            <div class="marketing-builder-grid marketing-builder-grid--two">
+                <div class="form-row form-row--full">
+                    <label for="{{ edit_form.executive_summary_override.id_for_label }}">Executive Summary Override</label>
+                    {{ edit_form.executive_summary_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.market_research_override.id_for_label }}">Market Research Override</label>
+                    {{ edit_form.market_research_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.swot_override.id_for_label }}">SWOT Override</label>
+                    {{ edit_form.swot_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.personas_override.id_for_label }}">Persona Override</label>
+                    {{ edit_form.personas_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.uvp_override.id_for_label }}">UVP Override</label>
+                    {{ edit_form.uvp_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.campaigns_override.id_for_label }}">Campaign Override</label>
+                    {{ edit_form.campaigns_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.sales_pitch_override.id_for_label }}">Sales Pitch Override</label>
+                    {{ edit_form.sales_pitch_override }}
+                </div>
+                <div class="form-row">
+                    <label for="{{ edit_form.next_steps_override.id_for_label }}">Next Steps Override</label>
+                    {{ edit_form.next_steps_override }}
+                </div>
+            </div>
+            <div class="panel-editor__actions">
+                <button class="button button-primary" type="submit">Save Plan Edits</button>
+            </div>
+        </form>
     </section>
 </main>
 {% endblock %}

@@ -10,6 +10,7 @@
             <h1 class="workspace-title">Update panel details, sample type, price, TAT, and gene membership.</h1>
             <p class="lead">
                 We keep the editing flow simple: update the record in one place, save it, and the panel library stays current.
+                You can also keep a competitor panel as commercial-only intelligence with website, price, and TAT even when gene data is unavailable.
             </p>
         </div>
     </section>
@@ -28,10 +29,16 @@
                 </div>
             </div>
             <div class="workspace-card__stats">
+                <span>Gene Data: {% if panel.gene_panel_available %}Available{% else %}Not available{% endif %}</span>
                 <span>Sample: {{ panel.get_sample_type_display }}</span>
                 <span>Price: {% if panel.price %}{{ panel.price }} BDT{% else %}N/A{% endif %}</span>
                 <span>TAT: {{ panel.tat|default:"N/A" }}</span>
             </div>
+            {% if panel.website_url %}
+                <div class="workspace-card__stats">
+                    <span>Website: <a href="{{ panel.website_url }}" target="_blank" rel="noopener noreferrer">{{ panel.website_url }}</a></span>
+                </div>
+            {% endif %}
             <div class="workspace-card__variants">
                 <p class="workspace-card__variants-label">Current Capabilities</p>
                 <div class="gene-chip-row">

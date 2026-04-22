@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Marketing Plan Gantt{% endblock %}
+
+{% block content %}
+<main class="page-shell">
+    <section class="workspace-stage workspace-stage--dashboard">
+        <div class="workspace-stage__hero">
+            <span class="eyebrow">{{ plan_style_label }}</span>
+            <h1 class="workspace-title">{{ plan.title }} Timeline</h1>
+            <p class="lead">This is the plan’s gantt-ready execution view built from structured timeline rows.</p>
+            <div class="hero-actions">
+                <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_detail' plan.pk %}">Back To Plan</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'xlsx' %}">Export Excel</a>
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_export' plan.pk 'csv' %}">Export CSV</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="workspace-panel detail-panel">
+        <div class="section-heading">
+            <span class="eyebrow">Phase Lanes</span>
+            <h2>Execution workstream view</h2>
+        </div>
+        <div class="gantt-board" style="--gantt-columns: {{ gantt_phases|length }};">
+            <div class="gantt-board__header">
+                {% for phase in gantt_phases %}
+                    <div class="gantt-board__phase">{{ phase }}</div>
+                {% endfor %}
+            </div>
+            <div class="gantt-board__body">
+                {% for row in gantt_rows %}
+                    <div class="gantt-row">
+                        <div class="gantt-card" style="grid-column: {{ row.phase_col }};">
+                            <strong>{{ row.task }}</strong>
+                            <p><strong>Owner:</strong> {{ row.owner }}</p>
+                            <p><strong>Window:</strong> {{ row.start_period }} to {{ row.end_period }}</p>
+                            {% if row.dependency %}
+                                <p><strong>Dependency:</strong> {{ row.dependency }}</p>
+                            {% endif %}
+                            <p><strong>Status Signal:</strong> {{ row.status_signal }}</p>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="empty-state">
+                        <h3>No gantt rows yet.</h3>
+                        <p>Generate a launch, growth, detailed, or account plan and the structured gantt rows will show here.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+</main>
+{% endblock %}

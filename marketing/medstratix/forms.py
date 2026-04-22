@@ -7,6 +7,7 @@ from .models import (
     GuidelineDocument,
     GuidelineStatus,
     MarketAccount,
+    MarketingPlan,
     MarketStakeholder,
     Panel,
     SampleType,
@@ -90,6 +91,8 @@ class PanelUploadForm(forms.Form):
 
     company_name = forms.CharField(max_length=255)
     panel_name = forms.CharField(max_length=255)
+    website_url = forms.URLField(required=False, label="Website address")
+    gene_panel_available = forms.BooleanField(required=False, initial=True, label="Gene panel data available")
     sample_type = forms.ChoiceField(choices=SampleType.choices, initial=SampleType.TISSUE)
     supports_dna_ngs = forms.BooleanField(required=False, initial=True, label="DNA NGS")
     supports_rna_ngs = forms.BooleanField(required=False, label="RNA NGS")
@@ -121,11 +124,14 @@ class PanelUploadForm(forms.Form):
         self.initial["company_type"] = company_type
         apply_widget_style(self.fields)
         if company_type == CompanyType.YOURS:
+            self.fields["gene_panel_available"].initial = True
             self.fields["company_name"].widget.attrs["placeholder"] = "Your company name"
             self.fields["panel_name"].widget.attrs["placeholder"] = "Your panel name"
         elif company_type == CompanyType.COMPETITOR:
+            self.fields["gene_panel_available"].initial = False
             self.fields["company_name"].widget.attrs["placeholder"] = "Competitor company name"
             self.fields["panel_name"].widget.attrs["placeholder"] = "Competitor panel name"
+            self.fields["website_url"].widget.attrs["placeholder"] = "https://competitor-site.example/panel"
         self.fields["sample_type"].widget.attrs["class"] = "form-control"
         self.fields["price"].widget.attrs["placeholder"] = "Price"
         self.fields["tat"].widget.attrs["placeholder"] = "e.g. 10 business days"
@@ -141,6 +147,7 @@ class PanelUploadForm(forms.Form):
         )
         for field_name in capability_fields:
             self.fields[field_name].widget.attrs["class"] = "checkbox-input"
+        self.fields["gene_panel_available"].widget.attrs["class"] = "checkbox-input"
 
     def clean_company_type(self):
         value = self.cleaned_data["company_type"]
@@ -150,8 +157,15 @@ class PanelUploadForm(forms.Form):
         cleaned_data = super().clean()
         gene_text = (cleaned_data.get("gene_text") or "").strip()
         gene_file = cleaned_data.get("gene_file")
-        if not gene_text and not gene_file:
-            raise forms.ValidationError("Provide a gene list in the text area or upload a CSV/text file.")
+        gene_panel_available = cleaned_data.get("gene_panel_available", False)
+        company_type = cleaned_data.get("company_type") or self.company_type
+
+        if company_type == CompanyType.COMPETITOR and not gene_text and not gene_file:
+            cleaned_data["gene_panel_available"] = False
+            return cleaned_data
+
+        if gene_panel_available and not gene_text and not gene_file:
+            raise forms.ValidationError("If gene panel data is available, provide a gene list in the text area or upload a CSV/text file.")
         return cleaned_data
 
 
@@ -209,6 +223,7 @@ class MarketStakeholderForm(forms.ModelForm):
         fields = [
             "account",
             "name",
+            "is_verified",
             "role",
             "specialty",
             "influence_level",
@@ -243,7 +258,17 @@ class MarketingPlanBuilderForm(forms.Form):
     output_style = forms.ChoiceField(choices=OUTPUT_STYLE_CHOICES, initial="brief_plan")
     include_product_context = forms.BooleanField(required=False, initial=False)
     strategy_model = forms.ChoiceField(choices=(), required=False)
+    planning_horizon = forms.CharField(required=False, max_length=255)
+    expected_monthly_samples = forms.IntegerField(required=False, min_value=0)
+    expected_quarterly_revenue_bdt = forms.DecimalField(required=False, max_digits=14, decimal_places=2)
+    expected_year_one_revenue_bdt = forms.DecimalField(required=False, max_digits=14, decimal_places=2)
+    revenue_guardrail_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
     strategist_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 6}))
+    source_plans = forms.ModelMultipleChoiceField(
+        queryset=MarketingPlan.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
     market_accounts = forms.ModelMultipleChoiceField(
         queryset=MarketAccount.objects.none(),
         required=False,
@@ -262,6 +287,7 @@ class MarketingPlanBuilderForm(forms.Form):
 
     def __init__(self, *args, model_choices=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["source_plans"].queryset = MarketingPlan.objects.order_by("-created_at")
         self.fields["market_accounts"].queryset = MarketAccount.objects.order_by("name")
         self.fields["your_panels"].queryset = Panel.objects.filter(company__type=CompanyType.YOURS).select_related("company")
         self.fields["competitor_panels"].queryset = Panel.objects.filter(company__type=CompanyType.COMPETITOR).select_related("company")
@@ -274,6 +300,37 @@ class MarketingPlanBuilderForm(forms.Form):
                 "disease_focus": self.fields["disease_focus"],
                 "output_style": self.fields["output_style"],
                 "strategy_model": self.fields["strategy_model"],
+                "planning_horizon": self.fields["planning_horizon"],
+                "expected_monthly_samples": self.fields["expected_monthly_samples"],
+                "expected_quarterly_revenue_bdt": self.fields["expected_quarterly_revenue_bdt"],
+                "expected_year_one_revenue_bdt": self.fields["expected_year_one_revenue_bdt"],
+                "revenue_guardrail_note": self.fields["revenue_guardrail_note"],
                 "strategist_note": self.fields["strategist_note"],
+            }
+        )
+
+
+class MarketingPlanSectionEditForm(forms.Form):
+    executive_summary_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    market_research_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+    swot_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+    personas_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+    uvp_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    campaigns_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+    sales_pitch_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    next_steps_override = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        apply_widget_style(
+            {
+                "executive_summary_override": self.fields["executive_summary_override"],
+                "market_research_override": self.fields["market_research_override"],
+                "swot_override": self.fields["swot_override"],
+                "personas_override": self.fields["personas_override"],
+                "uvp_override": self.fields["uvp_override"],
+                "campaigns_override": self.fields["campaigns_override"],
+                "sales_pitch_override": self.fields["sales_pitch_override"],
+                "next_steps_override": self.fields["next_steps_override"],
             }
         )

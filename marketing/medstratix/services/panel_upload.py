@@ -80,6 +80,8 @@ def save_uploaded_panel(
     company_name: str,
     company_type: str,
     panel_name: str,
+    website_url: str,
+    gene_panel_available: bool,
     sample_type: str,
     supports_dna_ngs: bool,
     supports_rna_ngs: bool,
@@ -120,6 +122,8 @@ def save_uploaded_panel(
         created = False
         panel.company = company
         panel.name = panel_name.strip()
+        panel.website_url = (website_url or "").strip()
+        panel.gene_panel_available = gene_panel_available
         panel.sample_type = sample_type or SampleType.TISSUE
         panel.supports_dna_ngs = supports_dna_ngs
         panel.supports_rna_ngs = supports_rna_ngs
@@ -135,6 +139,8 @@ def save_uploaded_panel(
             update_fields=[
                 "company",
                 "name",
+                "website_url",
+                "gene_panel_available",
                 "sample_type",
                 "supports_dna_ngs",
                 "supports_rna_ngs",
@@ -154,6 +160,8 @@ def save_uploaded_panel(
             company=company,
             name=panel_name.strip(),
             defaults={
+                "website_url": (website_url or "").strip(),
+                "gene_panel_available": gene_panel_available,
                 "sample_type": sample_type or SampleType.TISSUE,
                 "supports_dna_ngs": supports_dna_ngs,
                 "supports_rna_ngs": supports_rna_ngs,
@@ -169,6 +177,8 @@ def save_uploaded_panel(
         )
         if not created:
             panel.sample_type = sample_type or SampleType.TISSUE
+            panel.website_url = (website_url or "").strip()
+            panel.gene_panel_available = gene_panel_available
             panel.supports_dna_ngs = supports_dna_ngs
             panel.supports_rna_ngs = supports_rna_ngs
             panel.supports_fusions = supports_fusions
@@ -182,6 +192,8 @@ def save_uploaded_panel(
             panel.save(
                 update_fields=[
                     "sample_type",
+                    "website_url",
+                    "gene_panel_available",
                     "supports_dna_ngs",
                     "supports_rna_ngs",
                     "supports_fusions",
@@ -196,19 +208,26 @@ def save_uploaded_panel(
                 ]
             )
 
-    symbols = _parse_gene_payload(gene_text=gene_text, gene_file=gene_file)
-    panel.panel_genes.all().delete()
-    gene_count = 0
-    for symbol in symbols:
-        gene, _ = Gene.objects.get_or_create(symbol=symbol)
-        PanelGene.objects.get_or_create(panel=panel, gene=gene)
-        gene_count += 1
+    gene_count = panel.panel_genes.count()
+    if gene_panel_available:
+        symbols = _parse_gene_payload(gene_text=gene_text, gene_file=gene_file)
+        if symbols:
+            panel.panel_genes.all().delete()
+            gene_count = 0
+            for symbol in symbols:
+                gene, _ = Gene.objects.get_or_create(symbol=symbol)
+                PanelGene.objects.get_or_create(panel=panel, gene=gene)
+                gene_count += 1
+    else:
+        panel.panel_genes.all().delete()
+        gene_count = 0
 
     return {
         "company": company,
         "panel": panel,
         "created": created,
         "gene_count": gene_count,
+        "gene_panel_available": gene_panel_available,
         "company_type": company.type,
         "normalized_price": normalized_price,
         "price_note": price_note,

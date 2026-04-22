@@ -54,8 +54,8 @@ class MarketAccountAdmin(admin.ModelAdmin):
 
 @admin.register(MarketStakeholder)
 class MarketStakeholderAdmin(admin.ModelAdmin):
-    list_display = ["name", "account", "role", "specialty", "influence_level", "created_at"]
-    list_filter = ["role", "influence_level", "evidence_preference", "conference_interest"]
+    list_display = ["name", "account", "is_verified", "role", "specialty", "influence_level", "created_at"]
+    list_filter = ["is_verified", "role", "influence_level", "evidence_preference", "conference_interest"]
     search_fields = ["name", "account__name", "specialty", "behavioral_notes"]
     autocomplete_fields = ["account"]
 

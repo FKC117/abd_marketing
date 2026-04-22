@@ -8,26 +8,44 @@
     <link rel="stylesheet" href="{% static 'medstratix/css/site.css' %}">
 </head>
 <body>
+    {% with current_path=request.path %}
     <header class="site-header">
         <div class="site-header__inner">
             <a class="brand-mark" href="{% url 'medstratix:home' %}">MedStratix</a>
             <nav class="site-nav">
-                <a href="{% url 'medstratix:home' %}">Home</a>
+                <a class="{% if current_path == '/' %}is-active{% endif %}" href="{% url 'medstratix:home' %}">Home</a>
                 {% if request.user.is_authenticated %}
-                    <a href="{% url 'medstratix:guideline_workspace' %}">Workspace</a>
-                    <a href="{% url 'medstratix:panel_workspace' %}">Panels</a>
-                    <a href="{% url 'medstratix:comparison_run_workspace' %}">Compare Runs</a>
-                    <a href="{% url 'medstratix:market_workspace' %}">Market</a>
-                    <a href="{% url 'medstratix:strategy_workspace' %}">Strategies</a>
-                    <a href="{% url 'medstratix:marketing_plan_workspace' %}">Marketing Plans</a>
-                    <a href="{% url 'medstratix:guideline_dashboard' %}">Dashboard</a>
-                    <a href="{% url 'medstratix:biomarker_catalog' %}">Biomarkers</a>
-                    <a href="{% url 'medstratix:testing_panels' %}">Testing Panels</a>
-                    <a href="{% url 'medstratix:therapy_panels' %}">Therapy Rules</a>
-                    <form method="post" action="{% url 'medstratix:logout' %}">
-                        {% csrf_token %}
-                        <button class="nav-button" type="submit">Logout</button>
-                    </form>
+                    <details class="nav-dropdown" {% if '/workspace/' in current_path and '/workspace/panels/' not in current_path and '/workspace/market/' not in current_path and '/workspace/strategies/' not in current_path and '/workspace/marketing-plans/' not in current_path %}open{% endif %}>
+                        <summary>Guidelines</summary>
+                        <div class="nav-dropdown__menu">
+                            <a class="{% if current_path == '/workspace/' %}is-active{% endif %}" href="{% url 'medstratix:guideline_workspace' %}">Workspace</a>
+                            <a class="{% if '/workspace/dashboard/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:guideline_dashboard' %}">Dashboard</a>
+                            <a class="{% if '/workspace/biomarkers/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:biomarker_catalog' %}">Biomarkers</a>
+                            <a class="{% if '/workspace/testing-panels/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:testing_panels' %}">Testing Panels</a>
+                            <a class="{% if '/workspace/therapy-panels/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:therapy_panels' %}">Therapy Rules</a>
+                        </div>
+                    </details>
+                    <details class="nav-dropdown" {% if '/workspace/panels/' in current_path or '/workspace/market/' in current_path %}open{% endif %}>
+                        <summary>Commercial</summary>
+                        <div class="nav-dropdown__menu">
+                            <a class="{% if '/workspace/panels/' in current_path and '/compare/runs/' not in current_path and '/compare/result/' not in current_path and '/compare/' not in current_path %}is-active{% endif %}" href="{% url 'medstratix:panel_workspace' %}">Panels</a>
+                            <a class="{% if '/workspace/panels/compare/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:comparison_run_workspace' %}">Compare Runs</a>
+                            <a class="{% if '/workspace/market/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:market_workspace' %}">Market</a>
+                        </div>
+                    </details>
+                    <details class="nav-dropdown" {% if '/workspace/strategies/' in current_path or '/workspace/marketing-plans/' in current_path %}open{% endif %}>
+                        <summary>Strategy</summary>
+                        <div class="nav-dropdown__menu">
+                            <a class="{% if '/workspace/strategies/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:strategy_workspace' %}">Strategies</a>
+                            <a class="{% if '/workspace/marketing-plans/' in current_path %}is-active{% endif %}" href="{% url 'medstratix:marketing_plan_workspace' %}">Marketing Plans</a>
+                        </div>
+                    </details>
+                    <div class="site-nav__actions">
+                        <form method="post" action="{% url 'medstratix:logout' %}">
+                            {% csrf_token %}
+                            <button class="nav-button" type="submit">Logout</button>
+                        </form>
+                    </div>
                 {% else %}
                     <a href="{% url 'medstratix:signin' %}">Sign in</a>
                     <a class="nav-pill" href="{% url 'medstratix:signup' %}">Sign up</a>
@@ -35,6 +53,7 @@
             </nav>
         </div>
     </header>
+    {% endwith %}
     {% if messages %}
         <div class="flash-stack">
             {% for message in messages %}

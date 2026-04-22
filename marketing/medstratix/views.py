@@ -1,4 +1,5 @@
 from collections import defaultdict
+from decimal import Decimal
 import logging
 
 from django.contrib import messages
@@ -17,6 +18,7 @@ from .forms import (
     GuidelineUploadForm,
     MarketAccountForm,
     MarketingPlanBuilderForm,
+    MarketingPlanSectionEditForm,
     MarketStakeholderForm,
     PanelComparisonSelectForm,
     PanelUploadForm,
@@ -43,14 +45,195 @@ from .models import (
 from .services.guideline_pipeline import process_guideline_document
 from .services.gemini_models import list_strategy_models
 from .services.marketing_plan_generator import generate_marketing_plan
+from .services.marketing_plan_schema import (
+    MARKETING_PLAN_STYLE_LABELS,
+    extract_marketing_plan_summary,
+    marketing_plan_sections,
+    normalize_marketing_plan_payload,
+    stringify_plan_value,
+)
+from .services.marketing_plan_xlsx_export import build_marketing_plan_xlsx
 from .services.nccn_profiles import get_parser_profile
 from .services.panel_comparison import build_comparison_bundle, build_guideline_coverage, build_panel_set_profile, compare_panel_profiles
-from .services.strategy_exporter import build_comparison_run_docx, build_strategy_docx
+from .services.strategy_exporter import (
+    build_comparison_run_docx,
+    build_marketing_plan_csv,
+    build_marketing_plan_docx,
+    build_marketing_plan_pdf,
+    build_strategy_docx,
+)
 from .services.panel_upload import save_uploaded_panel
 from .services.strategy_generator import generate_structured_strategy
 
 
 logger = logging.getLogger("medstratix.views")
+
+
+def _json_safe_value(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, set):
+        return sorted(_json_safe_value(item) for item in value)
+    if isinstance(value, dict):
+        return {key: _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, Panel):
+        return {
+            "id": value.pk,
+            "name": value.name,
+            "company": value.company.name,
+            "sample_type": value.get_sample_type_display(),
+            "price_bdt": str(value.price) if value.price is not None else "",
+            "tat": value.tat or "",
+        }
+    if isinstance(value, GuidelineDocument):
+        return {
+            "id": value.pk,
+            "name": value.name,
+            "cancer_type": value.cancer_type,
+        }
+    return value
+
+
+def _marketing_plan_summary_text(payload: dict) -> str:
+    return extract_marketing_plan_summary(payload)
+
+
+def _marketing_plan_section_overrides(plan: MarketingPlan) -> dict:
+    return dict((plan.report_json or {}).get("section_overrides", {}) or {})
+
+
+def _marketing_plan_context_snapshot(plan: MarketingPlan) -> dict:
+    payload = plan.plan_json or {}
+    overrides = _marketing_plan_section_overrides(plan)
+    return {
+        "id": plan.pk,
+        "title": plan.title,
+        "output_style": plan.output_style,
+        "output_style_label": MARKETING_PLAN_STYLE_LABELS.get(plan.output_style, plan.output_style),
+        "geography": plan.geography,
+        "disease_focus": plan.disease_focus,
+        "executive_summary": payload.get("executive_summary", {}),
+        "market_research": payload.get("market_research", {}),
+        "swot": payload.get("swot", {}),
+        "target_audience_personas": payload.get("target_audience_personas", []),
+        "unique_value_proposition": payload.get("unique_value_proposition", {}),
+        "campaign_plan": payload.get("campaign_plan", []),
+        "sales_pitch": payload.get("sales_pitch", {}),
+        "recommended_next_steps": payload.get("recommended_next_steps", []),
+        "sales_expectation": dict((plan.report_json or {}).get("sales_expectation", {}) or {}),
+        "human_section_overrides": overrides,
+    }
+
+
+def _marketing_plan_edit_initial(plan: MarketingPlan) -> dict:
+    overrides = _marketing_plan_section_overrides(plan)
+    payload = plan.plan_json or {}
+    return {
+        "executive_summary_override": _stringify_plan_value(
+            overrides.get("executive_summary_override", payload.get("executive_summary", {}).get("summary", plan.executive_summary or ""))
+        ),
+        "market_research_override": overrides.get(
+            "market_research_override",
+            "\n\n".join(
+                filter(
+                    None,
+                    [
+                        _stringify_plan_value(payload.get("market_research", {}).get("market_landscape", "")),
+                        _stringify_plan_value(payload.get("market_research", {}).get("competitor_audit", "")),
+                        _stringify_plan_value(payload.get("market_research", {}).get("key_constraints", "")),
+                        _stringify_plan_value(payload.get("market_research", {}).get("market_distortion", "")),
+                        _stringify_plan_value(payload.get("market_research", {}).get("opportunity_map", "")),
+                    ],
+                )
+            ),
+        ),
+        "swot_override": overrides.get(
+            "swot_override",
+            "\n".join(
+                [
+                    f"Strengths: {_stringify_plan_value(payload.get('swot', {}).get('strengths', []))}",
+                    f"Weaknesses: {_stringify_plan_value(payload.get('swot', {}).get('weaknesses', []))}",
+                    f"Opportunities: {_stringify_plan_value(payload.get('swot', {}).get('opportunities', []))}",
+                    f"Threats: {_stringify_plan_value(payload.get('swot', {}).get('threats', []))}",
+                ]
+            ).strip(),
+        ),
+        "personas_override": overrides.get(
+            "personas_override",
+            "\n\n".join(
+                f"{_stringify_plan_value(item.get('persona', 'Persona'))}: role={_stringify_plan_value(item.get('role', 'N/A'))}; motivations={_stringify_plan_value(item.get('motivations', 'N/A'))}; barriers={_stringify_plan_value(item.get('barriers', 'N/A'))}"
+                for item in payload.get("target_audience_personas", [])
+            ),
+        ),
+        "uvp_override": overrides.get(
+            "uvp_override",
+            "\n".join(
+                filter(
+                    None,
+                    [
+                        _stringify_plan_value(payload.get("unique_value_proposition", {}).get("headline", "")),
+                        _stringify_plan_value(payload.get("unique_value_proposition", {}).get("proof_points", "")),
+                        _stringify_plan_value(payload.get("unique_value_proposition", {}).get("why_now", "")),
+                    ],
+                )
+            ),
+        ),
+        "campaigns_override": overrides.get(
+            "campaigns_override",
+            "\n\n".join(
+                f"{_stringify_plan_value(item.get('name', 'Campaign'))}: {_stringify_plan_value(item.get('objective', 'N/A'))} | {_stringify_plan_value(item.get('message', 'N/A'))}"
+                for item in payload.get("campaign_plan", [])
+            ),
+        ),
+        "sales_pitch_override": overrides.get(
+            "sales_pitch_override",
+            "\n".join(
+                filter(
+                    None,
+                    [
+                        _stringify_plan_value(payload.get("sales_pitch", {}).get("elevator_pitch", "")),
+                        _stringify_plan_value(payload.get("sales_pitch", {}).get("clinician_pitch", "")),
+                        _stringify_plan_value(payload.get("sales_pitch", {}).get("institution_pitch", "")),
+                    ],
+                )
+            ),
+        ),
+        "next_steps_override": overrides.get(
+            "next_steps_override",
+            "\n".join(_stringify_plan_value(item) for item in payload.get("recommended_next_steps", [])),
+        ),
+    }
+
+
+def _marketing_plan_display_sections(plan: MarketingPlan) -> list[dict]:
+    sections = marketing_plan_sections(plan.output_style, plan.plan_json or {})
+    for section in sections:
+        value = section["value"]
+        if isinstance(value, dict):
+            section["count"] = len(value)
+        elif isinstance(value, list):
+            section["count"] = len(value)
+        else:
+            section["count"] = 1
+    return sections
+
+
+def _marketing_plan_highlights(plan: MarketingPlan) -> dict:
+    payload = plan.plan_json or {}
+    sections = marketing_plan_sections(plan.output_style, payload)
+    return {
+        "section_count": len(sections),
+        "campaign_count": len(payload.get("campaign_plan", []) or payload.get("top_campaigns", []) or payload.get("launch_campaigns", [])),
+        "timeline_count": len(
+            payload.get("execution_roadmap", [])
+            or payload.get("ninety_day_timeline", [])
+            or payload.get("quarterly_roadmap", [])
+            or payload.get("account_action_plan", [])
+        ),
+        "revenue_row_count": len(payload.get("revenue_model", []) or payload.get("revenue_potential", [])),
+    }
 
 
 def _guideline_depth_label(guideline: GuidelineDocument) -> str:
@@ -321,6 +504,8 @@ def _panel_snapshot(panel: Panel) -> dict:
         "gene_overflow": max(len(gene_symbols) - 10, 0),
         "sample_type_label": panel.get_sample_type_display(),
         "capabilities": capabilities,
+        "gene_panel_available": panel.gene_panel_available,
+        "website_url": panel.website_url,
     }
 
 
@@ -331,6 +516,8 @@ def _panel_initial(panel: Panel) -> dict:
     return {
         "company_name": panel.company.name,
         "panel_name": panel.name,
+        "website_url": panel.website_url,
+        "gene_panel_available": panel.gene_panel_available,
         "sample_type": panel.sample_type,
         "supports_dna_ngs": panel.supports_dna_ngs,
         "supports_rna_ngs": panel.supports_rna_ngs,
@@ -354,6 +541,7 @@ def _market_snapshot(account: MarketAccount) -> dict:
         "account": account,
         "stakeholders": stakeholders,
         "stakeholder_count": len(stakeholders),
+        "verified_stakeholder_count": sum(1 for stakeholder in stakeholders if stakeholder.is_verified),
     }
 
 
@@ -371,6 +559,7 @@ def _panel_set_summary(panels: list[Panel]) -> dict:
         "panel_count": profile["panel_count"],
         "sample_type": profile["sample_type_label"],
         "price_bdt": profile["price_label"],
+        "price_rows": profile.get("price_rows", []),
         "tat": profile["tat_label"],
         "panel_names": [panel.name for panel in profile["panels"]],
     }
@@ -384,6 +573,12 @@ def _strategy_export_filename(report: StrategyReport, fmt: str) -> str:
 
 def _comparison_run_export_filename(run: ComparisonRun, fmt: str) -> str:
     base = slugify(run.name or f"comparison-run-{run.pk}") or f"comparison-run-{run.pk}"
+    extension = "docx" if fmt == "docx" else fmt
+    return f"{base}.{extension}"
+
+
+def _marketing_plan_export_filename(plan: MarketingPlan, fmt: str) -> str:
+    base = slugify(plan.title or f"marketing-plan-{plan.pk}") or f"marketing-plan-{plan.pk}"
     extension = "docx" if fmt == "docx" else fmt
     return f"{base}.{extension}"
 
@@ -804,6 +999,8 @@ def panel_workspace(request):
                 company_name=active_form.cleaned_data["company_name"],
                 company_type=company_type,
                 panel_name=active_form.cleaned_data["panel_name"],
+                website_url=active_form.cleaned_data.get("website_url", ""),
+                gene_panel_available=active_form.cleaned_data.get("gene_panel_available", False),
                 sample_type=active_form.cleaned_data.get("sample_type", SampleType.TISSUE),
                 supports_dna_ngs=active_form.cleaned_data.get("supports_dna_ngs", False),
                 supports_rna_ngs=active_form.cleaned_data.get("supports_rna_ngs", False),
@@ -822,7 +1019,7 @@ def panel_workspace(request):
             messages.success(
                 request,
                 f"{result['panel'].name} saved for {result['company'].name}. "
-                f"Loaded {result['gene_count']} genes. {result['price_note']}",
+                f"{'Loaded ' + str(result['gene_count']) + ' genes.' if result['gene_panel_available'] else 'Gene panel data marked unavailable.'} {result['price_note']}",
             )
             return redirect("medstratix:panel_workspace")
     else:
@@ -894,6 +1091,8 @@ def panel_edit(request, pk):
                 company_name=form.cleaned_data["company_name"],
                 company_type=panel.company.type,
                 panel_name=form.cleaned_data["panel_name"],
+                website_url=form.cleaned_data.get("website_url", ""),
+                gene_panel_available=form.cleaned_data.get("gene_panel_available", False),
                 sample_type=form.cleaned_data.get("sample_type", SampleType.TISSUE),
                 supports_dna_ngs=form.cleaned_data.get("supports_dna_ngs", False),
                 supports_rna_ngs=form.cleaned_data.get("supports_rna_ngs", False),
@@ -910,7 +1109,12 @@ def panel_edit(request, pk):
                 gene_file=form.cleaned_data.get("gene_file"),
                 existing_panel=panel,
             )
-            messages.success(request, f"{result['panel'].name} updated successfully. {result['price_note']}")
+            messages.success(
+                request,
+                f"{result['panel'].name} updated successfully. "
+                f"{'Loaded ' + str(result['gene_count']) + ' genes.' if result['gene_panel_available'] else 'Gene panel data marked unavailable.'} "
+                f"{result['price_note']}"
+            )
             return redirect("medstratix:panel_workspace")
     else:
         form = PanelUploadForm(initial=_panel_initial(panel), company_type=panel.company.type)
@@ -1336,13 +1540,27 @@ def marketing_plan_builder(request):
     strategy_model_options = list_strategy_models()
     model_choices = [(item["code"], f"{item['label']}{' (Recommended)' if item.get('recommended') else ''}") for item in strategy_model_options]
 
+    preselected_source_plans = []
+    source_ids = _parse_panel_ids(request.GET.get("source_plans", ""))
+    if source_ids:
+        source_plans_map = MarketingPlan.objects.in_bulk(source_ids)
+        preselected_source_plans = [source_plans_map[source_id] for source_id in source_ids if source_id in source_plans_map]
+
     if request.method == "POST":
         form = MarketingPlanBuilderForm(request.POST, model_choices=model_choices)
         if form.is_valid():
+            source_plans = list(form.cleaned_data["source_plans"])
             market_accounts = list(form.cleaned_data["market_accounts"])
             your_panels = list(form.cleaned_data["your_panels"])
             competitor_panels = list(form.cleaned_data["competitor_panels"])
             include_product_context = form.cleaned_data["include_product_context"]
+            sales_expectation = {
+                "planning_horizon": form.cleaned_data.get("planning_horizon") or "",
+                "expected_monthly_samples": form.cleaned_data.get("expected_monthly_samples") or "",
+                "expected_quarterly_revenue_bdt": str(form.cleaned_data.get("expected_quarterly_revenue_bdt") or ""),
+                "expected_year_one_revenue_bdt": str(form.cleaned_data.get("expected_year_one_revenue_bdt") or ""),
+                "revenue_guardrail_note": form.cleaned_data.get("revenue_guardrail_note") or "",
+            }
 
             your_summary = _panel_set_summary(your_panels) if include_product_context else {}
             competitor_summary = _panel_set_summary(competitor_panels) if include_product_context else {}
@@ -1352,7 +1570,7 @@ def marketing_plan_builder(request):
             if include_product_context and your_panels and competitor_panels:
                 your_profile = build_panel_set_profile(your_panels)
                 competitor_profile = build_panel_set_profile(competitor_panels)
-                comparison_summary = compare_panel_profiles(your_profile, competitor_profile)
+                comparison_summary = _json_safe_value(compare_panel_profiles(your_profile, competitor_profile))
                 comparison_run = ComparisonRun.objects.create(
                     created_by=request.user,
                     name=f"Marketing plan run for {form.cleaned_data['title']}",
@@ -1379,6 +1597,25 @@ def marketing_plan_builder(request):
                 }
                 for account in market_accounts
             ]
+            stakeholder_contexts = []
+            for account in market_accounts:
+                for stakeholder in account.stakeholders.order_by("name"):
+                    stakeholder_contexts.append(
+                        {
+                            "account": account.name,
+                            "name": stakeholder.name if stakeholder.is_verified else "",
+                            "is_verified": stakeholder.is_verified,
+                            "role": stakeholder.get_role_display(),
+                            "specialty": stakeholder.specialty,
+                            "influence_level": stakeholder.get_influence_level_display(),
+                            "evidence_preference": stakeholder.get_evidence_preference_display(),
+                            "conference_interest": stakeholder.conference_interest,
+                            "service_expectation": stakeholder.service_expectation,
+                            "behavioral_notes": stakeholder.behavioral_notes,
+                        }
+                    )
+
+            source_plan_contexts = [_marketing_plan_context_snapshot(plan) for plan in source_plans]
 
             result = generate_marketing_plan(
                 title=form.cleaned_data["title"],
@@ -1387,17 +1624,24 @@ def marketing_plan_builder(request):
                 disease_focus=form.cleaned_data["disease_focus"],
                 output_style=form.cleaned_data["output_style"],
                 include_product_context=include_product_context,
+                sales_expectation=sales_expectation,
                 strategist_note=form.cleaned_data["strategist_note"],
                 market_accounts_summary=market_accounts_summary,
+                stakeholder_contexts=stakeholder_contexts,
                 your_panel_summary=your_summary,
                 competitor_panel_summary=competitor_summary,
                 comparison_summary=comparison_summary,
+                source_plan_contexts=source_plan_contexts,
                 model_name_override=form.cleaned_data["strategy_model"],
             )
-            payload = result["response_json"]
+            payload = normalize_marketing_plan_payload(
+                form.cleaned_data["output_style"],
+                result["response_json"],
+                form.cleaned_data["title"],
+            )
             plan = MarketingPlan.objects.create(
                 created_by=request.user,
-                title=payload.get("title") or form.cleaned_data["title"],
+                title=form.cleaned_data["title"],
                 objective=form.cleaned_data["objective"],
                 geography=form.cleaned_data["geography"],
                 disease_focus=form.cleaned_data["disease_focus"],
@@ -1407,13 +1651,23 @@ def marketing_plan_builder(request):
                 market_account=market_accounts[0] if market_accounts else None,
                 comparison_run=comparison_run,
                 status="completed",
-                executive_summary=payload.get("executive_summary", ""),
+                executive_summary=_marketing_plan_summary_text(payload),
                 llm_provider=result["provider"],
                 llm_model=result["model"],
                 plan_json=payload,
                 plan_text=result["response_text"],
                 report_json={
+                    "source_plans": [
+                        {
+                            "id": source_plan.pk,
+                            "title": source_plan.title,
+                            "output_style": source_plan.output_style,
+                            "output_style_label": MARKETING_PLAN_STYLE_LABELS.get(source_plan.output_style, source_plan.output_style),
+                        }
+                        for source_plan in source_plans
+                    ],
                     "market_accounts": market_accounts_summary,
+                    "stakeholder_contexts": stakeholder_contexts,
                     "your_panels": [
                         {"id": panel.pk, "name": panel.name, "company": panel.company.name, "sample_type": panel.get_sample_type_display()}
                         for panel in your_panels
@@ -1423,6 +1677,9 @@ def marketing_plan_builder(request):
                         for panel in competitor_panels
                     ],
                     "strategist_note": form.cleaned_data["strategist_note"],
+                    "sales_expectation": sales_expectation,
+                    "source_plan_contexts": source_plan_contexts,
+                    "plan_title_source": "user_input",
                 },
             )
             LLMGenerationLog.objects.create(
@@ -1442,12 +1699,33 @@ def marketing_plan_builder(request):
             messages.success(request, "Marketing plan generated successfully.")
             return redirect("medstratix:marketing_plan_detail", pk=plan.pk)
     else:
-        form = MarketingPlanBuilderForm(model_choices=model_choices)
+        initial = {}
+        if preselected_source_plans:
+            primary_source = preselected_source_plans[0]
+            initial = {
+                "source_plans": [plan.pk for plan in preselected_source_plans],
+                "title": f"{primary_source.title} - {MARKETING_PLAN_STYLE_LABELS.get(request.GET.get('output_style', ''), 'Next Plan')}",
+                "objective": primary_source.objective,
+                "geography": primary_source.geography,
+                "disease_focus": primary_source.disease_focus,
+                "planning_horizon": primary_source.report_json.get("sales_expectation", {}).get("planning_horizon", ""),
+                "expected_monthly_samples": primary_source.report_json.get("sales_expectation", {}).get("expected_monthly_samples", ""),
+                "expected_quarterly_revenue_bdt": primary_source.report_json.get("sales_expectation", {}).get("expected_quarterly_revenue_bdt", ""),
+                "expected_year_one_revenue_bdt": primary_source.report_json.get("sales_expectation", {}).get("expected_year_one_revenue_bdt", ""),
+                "revenue_guardrail_note": primary_source.report_json.get("sales_expectation", {}).get("revenue_guardrail_note", ""),
+                "strategist_note": primary_source.strategist_note,
+                "include_product_context": primary_source.include_product_context,
+            }
+        requested_output_style = request.GET.get("output_style", "").strip()
+        if requested_output_style in MARKETING_PLAN_STYLE_LABELS:
+            initial["output_style"] = requested_output_style
+        form = MarketingPlanBuilderForm(initial=initial, model_choices=model_choices)
 
     context = {
         "page_title": "Marketing Plan Builder",
         "form": form,
         "strategy_model_options": strategy_model_options,
+        "preselected_source_plans": preselected_source_plans,
     }
     return render(request, "medstratix/marketing_plan_builder.html", context)
 
@@ -1468,12 +1746,137 @@ def marketing_plan_workspace(request):
 @login_required
 def marketing_plan_detail(request, pk):
     plan = get_object_or_404(MarketingPlan.objects.select_related("market_account", "comparison_run").prefetch_related("llm_logs"), pk=pk)
+    if request.method == "POST":
+        edit_form = MarketingPlanSectionEditForm(request.POST)
+        if edit_form.is_valid():
+            report_json = dict(plan.report_json or {})
+            report_json["section_overrides"] = {
+                key: value.strip()
+                for key, value in edit_form.cleaned_data.items()
+                if value and value.strip()
+            }
+            plan.report_json = report_json
+            override_summary = report_json["section_overrides"].get("executive_summary_override", "").strip()
+            if override_summary:
+                plan.executive_summary = override_summary
+            plan.save(update_fields=["report_json", "executive_summary", "updated_at"])
+            messages.success(request, "Plan edits saved. Future plan generations can reuse these human overrides.")
+            return redirect("medstratix:marketing_plan_detail", pk=plan.pk)
+    else:
+        edit_form = MarketingPlanSectionEditForm(initial=_marketing_plan_edit_initial(plan))
+
+    source_plans = []
+    for item in (plan.report_json or {}).get("source_plans", []) or []:
+        source_plans.append(item)
+
+    next_plan_links = [
+        {"label": "Expand To Detailed Plan", "style": "detailed_plan"},
+        {"label": "Turn Into 90-Day Launch Plan", "style": "launch_plan"},
+        {"label": "Turn Into Growth Plan", "style": "growth_plan"},
+        {"label": "Turn Into Account Plan", "style": "account_plan"},
+    ]
     context = {
         "page_title": plan.title,
         "plan": plan,
+        "plan_style_label": MARKETING_PLAN_STYLE_LABELS.get(plan.output_style, plan.output_style),
+        "plan_summary": plan.report_json.get("section_overrides", {}).get("executive_summary_override")
+        or (plan.plan_json or {}).get("narrative_summary")
+        or plan.executive_summary,
+        "plan_sections": _marketing_plan_display_sections(plan),
+        "plan_highlights": _marketing_plan_highlights(plan),
+        "sales_expectation": dict((plan.report_json or {}).get("sales_expectation", {}) or {}),
         "latest_log": plan.llm_logs.order_by("-created_at").first(),
+        "edit_form": edit_form,
+        "source_plans": source_plans,
+        "next_plan_links": next_plan_links,
     }
     return render(request, "medstratix/marketing_plan_detail.html", context)
+
+
+@login_required
+def marketing_plan_gantt(request, pk):
+    plan = get_object_or_404(MarketingPlan, pk=pk)
+    gantt_rows = list((plan.plan_json or {}).get("gantt_data", []) or [])
+    phases = []
+    for row in gantt_rows:
+        phase = stringify_plan_value(row.get("phase") or "Execution")
+        if phase not in phases:
+            phases.append(phase)
+    phase_index = {phase: index + 1 for index, phase in enumerate(phases)}
+
+    rows = []
+    for row in gantt_rows:
+        phase = stringify_plan_value(row.get("phase") or "Execution")
+        rows.append(
+            {
+                "task": stringify_plan_value(row.get("task") or "Untitled task"),
+                "phase": phase,
+                "owner": stringify_plan_value(row.get("owner") or "Unassigned"),
+                "start_period": stringify_plan_value(row.get("start_period") or "TBD"),
+                "end_period": stringify_plan_value(row.get("end_period") or "TBD"),
+                "dependency": stringify_plan_value(row.get("dependency") or ""),
+                "status_signal": stringify_plan_value(row.get("status_signal") or "Planned"),
+                "phase_col": phase_index.get(phase, 1),
+            }
+        )
+
+    context = {
+        "page_title": f"{plan.title} Gantt",
+        "plan": plan,
+        "plan_style_label": MARKETING_PLAN_STYLE_LABELS.get(plan.output_style, plan.output_style),
+        "gantt_rows": rows,
+        "gantt_phases": phases or ["Execution"],
+    }
+    return render(request, "medstratix/marketing_plan_gantt.html", context)
+
+
+@login_required
+def marketing_plan_export(request, pk, fmt):
+    plan = get_object_or_404(
+        MarketingPlan.objects.select_related("market_account", "comparison_run").prefetch_related("llm_logs"),
+        pk=pk,
+    )
+    latest_log = plan.llm_logs.order_by("-created_at").first()
+    export_format = (fmt or "").lower().strip()
+    filename = _marketing_plan_export_filename(plan, export_format)
+
+    if export_format == "json":
+        response = JsonResponse(plan.plan_json or {}, json_dumps_params={"indent": 2})
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "csv":
+        csv_buffer = build_marketing_plan_csv(plan)
+        response = HttpResponse(csv_buffer.getvalue(), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "xlsx":
+        workbook_bytes = build_marketing_plan_xlsx(plan)
+        response = HttpResponse(
+            workbook_bytes,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "docx":
+        document_buffer = build_marketing_plan_docx(plan, latest_log)
+        response = HttpResponse(
+            document_buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    if export_format == "pdf":
+        pdf_buffer = build_marketing_plan_pdf(plan, latest_log)
+        response = HttpResponse(pdf_buffer.getvalue(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    messages.error(request, "Unsupported export format.")
+    return redirect("medstratix:marketing_plan_detail", pk=plan.pk)
 
 
 @login_required

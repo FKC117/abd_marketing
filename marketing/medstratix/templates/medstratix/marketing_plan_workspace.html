@@ -21,7 +21,7 @@
                     <div class="workspace-card__main">
                         <div class="workspace-card__header">
                             <div>
-                                <span class="workspace-card__type">{{ plan.output_style }}</span>
+                                <span class="workspace-card__type">{{ plan.plan_json.plan_type_label|default:plan.output_style }}</span>
                                 <h3>{{ plan.title }}</h3>
                             </div>
                             <div class="workspace-card__badges">
@@ -35,11 +35,12 @@
                         </div>
                         <div class="workspace-card__profile">
                             <strong>Executive Summary</strong>
-                            <p>{{ plan.executive_summary|truncatechars:280 }}</p>
+                            <p>{{ plan.report_json.section_overrides.executive_summary_override|default:plan.plan_json.narrative_summary|default:plan.executive_summary|truncatechars:280 }}</p>
                         </div>
                     </div>
                     <div class="workspace-card__actions">
                         <a class="button button-primary workspace-button" href="{% url 'medstratix:marketing_plan_detail' plan.pk %}">Open Plan</a>
+                        <a class="button button-secondary workspace-button" href="{% url 'medstratix:marketing_plan_builder' %}?source_plans={{ plan.pk }}">Use As Source</a>
                     </div>
                 </article>
             {% empty %}

@@ -10,7 +10,8 @@
             <h1 class="workspace-title">Load your own panels and competitor panels with pricing, TAT, and gene content.</h1>
             <p class="lead">
                 This is the intake layer for MedStratix panel intelligence. Keep your internal panels and competitor
-                panels separate, but manage them from one operational screen.
+                panels separate, but manage them from one operational screen. Competitor records can now also be saved
+                with only commercial details and website source, even when the gene panel is not available yet.
             </p>
         </div>
     </section>
@@ -80,7 +81,7 @@
                 <span class="eyebrow">Competitors</span>
                 <h2>Upload competitor panels with pricing and turnaround details.</h2>
             </div>
-            <p class="panel-form-note">Prices may be entered in `BDT`, `USD`, or `EUR`. All saved prices are normalized into BDT.</p>
+            <p class="panel-form-note">Prices may be entered in `BDT`, `USD`, or `EUR`. All saved prices are normalized into BDT. If gene data is not available yet, turn off `Gene panel data available` and save commercial details plus website source.</p>
             <form method="post" enctype="multipart/form-data" class="styled-form">
                 {% csrf_token %}
                 <input type="hidden" name="upload_kind" value="competitor">
@@ -173,11 +174,17 @@
                             </div>
 
                             <div class="workspace-card__stats">
-                                <span>{{ item.gene_count }} genes</span>
+                                <span>{% if item.gene_panel_available %}{{ item.gene_count }} genes{% else %}Gene data unavailable{% endif %}</span>
                                 <span>Sample: {{ item.sample_type_label }}</span>
                                 <span>Price: {% if panel.price %}{{ panel.price }} BDT{% else %}N/A{% endif %}</span>
                                 <span>TAT: {{ panel.tat|default:"N/A" }}</span>
                             </div>
+
+                            {% if item.website_url %}
+                                <div class="workspace-card__stats">
+                                    <span>Website: <a href="{{ item.website_url }}" target="_blank" rel="noopener noreferrer">{{ item.website_url }}</a></span>
+                                </div>
+                            {% endif %}
 
                             <div class="workspace-card__variants">
                                 <p class="workspace-card__variants-label">Capabilities</p>
@@ -193,13 +200,17 @@
                             <div class="workspace-card__variants">
                                 <p class="workspace-card__variants-label">Gene preview</p>
                                 <div class="gene-chip-row">
-                                    {% for gene in item.gene_preview %}
-                                        <span class="gene-chip">{{ gene }}</span>
-                                    {% empty %}
-                                        <span class="table-subtle">No genes stored yet.</span>
-                                    {% endfor %}
-                                    {% if item.gene_overflow %}
-                                        <span class="gene-chip gene-chip--variant-muted">+{{ item.gene_overflow }} more</span>
+                                    {% if item.gene_panel_available %}
+                                        {% for gene in item.gene_preview %}
+                                            <span class="gene-chip">{{ gene }}</span>
+                                        {% empty %}
+                                            <span class="table-subtle">No genes stored yet.</span>
+                                        {% endfor %}
+                                        {% if item.gene_overflow %}
+                                            <span class="gene-chip gene-chip--variant-muted">+{{ item.gene_overflow }} more</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="table-subtle">This panel is saved as a competitor context record without gene-level panel data yet.</span>
                                     {% endif %}
                                 </div>
                             </div>

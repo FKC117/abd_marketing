@@ -17,6 +17,7 @@ def _panel_context(panel_like) -> dict:
             "company_name": panel_like.get("company_name", ""),
             "sample_type_label": panel_like.get("sample_type_label", ""),
             "price_label": panel_like.get("price_label", "N/A"),
+            "price_rows": panel_like.get("price_rows", []),
             "tat_label": panel_like.get("tat_label", "N/A"),
             "panel_count": panel_like.get("panel_count", 1),
             "panel_names": [panel.name for panel in panel_like.get("panels", [])],
@@ -26,6 +27,13 @@ def _panel_context(panel_like) -> dict:
         "company_name": panel_like.company.name,
         "sample_type_label": panel_like.get_sample_type_display(),
         "price_label": str(panel_like.price or "N/A"),
+        "price_rows": [
+            {
+                "panel_name": panel_like.name,
+                "company_name": panel_like.company.name,
+                "price_bdt": str(panel_like.price or ""),
+            }
+        ],
         "tat_label": panel_like.tat or "N/A",
         "panel_count": 1,
         "panel_names": [panel_like.name],
@@ -207,22 +215,33 @@ def _market_accounts_context(market_accounts, stakeholders) -> str:
         )
 
     stakeholder_lines = []
-    for stakeholder in (stakeholders or [])[:18]:
-        stakeholder_lines.append(
-            (
-                f"- {stakeholder.name} | account={stakeholder.account.name} | role={stakeholder.get_role_display()} "
-                f"| specialty={stakeholder.specialty or 'N/A'} | influence={stakeholder.get_influence_level_display()} "
-                f"| evidence_preference={stakeholder.get_evidence_preference_display()} "
-                f"| conference_interest={'yes' if stakeholder.conference_interest else 'no'} "
-                f"| service_expectation={stakeholder.service_expectation or 'N/A'} "
-                f"| notes={stakeholder.behavioral_notes or 'N/A'}"
-            )
+    verified_stakeholder_lines = []
+    unverified_segment_lines = []
+    for stakeholder in (stakeholders or [])[:24]:
+        line = (
+            f"account={stakeholder.account.name} | role={stakeholder.get_role_display()} "
+            f"| specialty={stakeholder.specialty or 'N/A'} | influence={stakeholder.get_influence_level_display()} "
+            f"| evidence_preference={stakeholder.get_evidence_preference_display()} "
+            f"| conference_interest={'yes' if stakeholder.conference_interest else 'no'} "
+            f"| service_expectation={stakeholder.service_expectation or 'N/A'} "
+            f"| notes={stakeholder.behavioral_notes or 'N/A'}"
         )
+        stakeholder_lines.append(f"- {stakeholder.name} | {line}")
+        if getattr(stakeholder, "is_verified", False):
+            verified_stakeholder_lines.append(f"- {stakeholder.name} | {line}")
+        else:
+            unverified_segment_lines.append(
+                f"- unnamed stakeholder segment | {line}"
+            )
 
     return (
         "Market account context:\n"
         + "\n".join(account_lines)
-        + "\n\nStakeholder summaries:\n"
+        + "\n\nVerified named stakeholders:\n"
+        + ("\n".join(verified_stakeholder_lines) if verified_stakeholder_lines else "- No verified named stakeholders provided")
+        + "\n\nUnverified stakeholder signals (use only as anonymous segment context, not for named person references):\n"
+        + ("\n".join(unverified_segment_lines) if unverified_segment_lines else "- No unverified stakeholder notes provided")
+        + "\n\nFull stakeholder record log:\n"
         + ("\n".join(stakeholder_lines) if stakeholder_lines else "- No stakeholder notes provided")
     )
 
@@ -315,6 +334,9 @@ Be specific, comparative, and commercial-clinical.
 Treat corruption pressure and referral distortion as a market obstacle that must be addressed ethically and compliantly.
 Do not recommend bribery, cash inducements, kickbacks, or any illegal/unethical doctor payment scheme.
 Recommend compliant alternatives such as evidence, service quality, turnaround reliability, institutional contracting, education, conference support when compliant, and account strategy.
+Do not invent KOL names, doctor identities, or institutional champions.
+Only use named people when they are explicitly present in the verified named stakeholders context.
+If a stakeholder is not verified, refer to them generically by role, specialty, or segment instead of by name.
 
 Additional strategist instruction from the user:
 {strategist_note or "No extra strategist note supplied."}
@@ -327,14 +349,16 @@ Your panel:
 - Panel count: {your_panel_context["panel_count"]}
 - Panel names: {", ".join(your_panel_context["panel_names"])}
 - Sample type: {your_panel_context["sample_type_label"]}
-- Price BDT: {your_panel_context["price_label"]}
+- Price context: {your_panel_context["price_label"]}
+- Panel-level prices: {json.dumps(_json_safe(your_panel_context["price_rows"]), indent=2)}
 - TAT: {your_panel_context["tat_label"]}
 
 Competitor panel:
 - Name: {competitor_panel_context["name"]}
 - Company: {competitor_panel_context["company_name"]}
 - Sample type: {competitor_panel_context["sample_type_label"]}
-- Price BDT: {competitor_panel_context["price_label"]}
+- Price context: {competitor_panel_context["price_label"]}
+- Panel-level prices: {json.dumps(_json_safe(competitor_panel_context["price_rows"]), indent=2)}
 - TAT: {competitor_panel_context["tat_label"]}
 
 Panel-to-panel comparison:

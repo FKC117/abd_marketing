@@ -21,7 +21,13 @@
                 <span class="eyebrow">Selected Panels</span>
                 <h2>{{ comparison_bundle.your_panel_set.name }} vs {{ competitor_panels|length }} competitor panel{{ competitor_panels|length|pluralize }}.</h2>
             </div>
-            <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_setup' %}">Change Selection</a>
+            <div class="hero-actions">
+                {% if comparison_run %}
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:comparison_run_export' comparison_run.pk 'docx' %}">Export Word</a>
+                    <a class="button button-secondary workspace-button" href="{% url 'medstratix:comparison_run_export' comparison_run.pk 'json' %}">Export JSON</a>
+                {% endif %}
+                <a class="button button-secondary workspace-button" href="{% url 'medstratix:panel_compare_setup' %}">Change Selection</a>
+            </div>
         </div>
         <div class="compare-summary-grid">
             <article class="mini-item mini-item--catalog">

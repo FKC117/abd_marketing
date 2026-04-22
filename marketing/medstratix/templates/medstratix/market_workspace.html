@@ -84,6 +84,7 @@
                             <span>Disease: {{ item.account.disease_focus|default:"N/A" }}</span>
                             <span>Market pressure: {{ item.account.get_market_corruption_pressure_display }}</span>
                             <span>Stakeholders: {{ item.stakeholder_count }}</span>
+                            <span>Verified: {{ item.verified_stakeholder_count }}</span>
                         </div>
                         <div class="workspace-card__profile">
                             <strong>Ethical Growth Goal</strong>
@@ -93,7 +94,7 @@
                             <p class="workspace-card__variants-label">Stakeholders</p>
                             <div class="gene-chip-row">
                                 {% for stakeholder in item.stakeholders %}
-                                    <span class="gene-chip gene-chip--total">{{ stakeholder.name }} | {{ stakeholder.get_role_display }}</span>
+                                    <span class="gene-chip gene-chip--total">{{ stakeholder.name }} | {{ stakeholder.get_role_display }}{% if stakeholder.is_verified %} | Verified{% endif %}</span>
                                 {% empty %}
                                     <span class="table-subtle">No stakeholder entries yet.</span>
                                 {% endfor %}

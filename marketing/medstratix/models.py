@@ -151,6 +151,7 @@ class MarketAccount(TimeStampedModel):
 class MarketStakeholder(TimeStampedModel):
     account = models.ForeignKey(MarketAccount, on_delete=models.CASCADE, related_name="stakeholders")
     name = models.CharField(max_length=255)
+    is_verified = models.BooleanField(default=False)
     role = models.CharField(max_length=64, choices=StakeholderRole.choices, default=StakeholderRole.OTHER)
     specialty = models.CharField(max_length=255, blank=True)
     influence_level = models.CharField(max_length=32, choices=SensitivityLevel.choices, default=SensitivityLevel.UNKNOWN)
@@ -183,6 +184,8 @@ class Gene(TimeStampedModel):
 class Panel(TimeStampedModel):
     name = models.CharField(max_length=255)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="panels")
+    website_url = models.URLField(blank=True)
+    gene_panel_available = models.BooleanField(default=True)
     sample_type = models.CharField(max_length=32, choices=SampleType.choices, default=SampleType.TISSUE)
     supports_dna_ngs = models.BooleanField(default=True)
     supports_rna_ngs = models.BooleanField(default=False)

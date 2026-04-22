@@ -48,6 +48,38 @@ def _panel_set_profile(panels: list[Panel]) -> dict:
         sample_type = "mixed"
         sample_type_label = "Mixed sample types"
 
+    price_rows = [
+        {
+            "panel_name": panel.name,
+            "company_name": panel.company.name,
+            "price_bdt": str(panel.price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) if panel.price is not None else "",
+        }
+        for panel in panels
+    ]
+    min_price = min(prices) if prices else None
+    max_price = max(prices) if prices else None
+
+    if len(panels) == 1:
+        price_total = prices[0] if prices else None
+        price_label = (
+            str(prices[0].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            if prices
+            else "N/A"
+        )
+    elif prices and len(prices) == len(panels):
+        price_total = None
+        if min_price == max_price:
+            price_label = f"Portfolio price point: {min_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}"
+        else:
+            price_label = (
+                f"Portfolio range: "
+                f"{min_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}-"
+                f"{max_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}"
+            )
+    else:
+        price_total = None
+        price_label = "Portfolio pricing incomplete"
+
     return {
         "panels": panels,
         "panel_ids": [panel.pk for panel in panels],
@@ -57,12 +89,11 @@ def _panel_set_profile(panels: list[Panel]) -> dict:
         "sample_type": sample_type,
         "sample_type_label": sample_type_label,
         "sample_types": sample_types,
-        "price_total": sum(prices, Decimal("0.00")) if prices else None,
-        "price_label": (
-            str(sum(prices, Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-            if prices and len(prices) == len(panels)
-            else "Mixed / partial"
-        ),
+        "price_total": price_total,
+        "price_label": price_label,
+        "price_min": min_price,
+        "price_max": max_price,
+        "price_rows": price_rows,
         "tat_label": tats[0] if len(set(tats)) == 1 and tats else "Mixed / varies" if tats else "N/A",
         "gene_symbols": gene_symbols,
         "supports_dna_ngs": any(panel.supports_dna_ngs for panel in panels),
@@ -369,7 +400,12 @@ def compare_panel_profiles(your_profile: dict, competitor_profile: dict) -> dict
 
     price_delta = None
     competitor_price = competitor_profile.get("price_total")
-    if your_profile.get("price_total") is not None and competitor_price is not None:
+    if (
+        your_profile.get("panel_count", 1) == 1
+        and competitor_profile.get("panel_count", 1) == 1
+        and your_profile.get("price_total") is not None
+        and competitor_price is not None
+    ):
         price_delta = (your_profile["price_total"] - competitor_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     report_payload = {

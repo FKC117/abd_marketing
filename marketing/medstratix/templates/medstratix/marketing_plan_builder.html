@@ -4,33 +4,279 @@
 
 {% block content %}
 <main class="page-shell">
-    <section class="workspace-stage workspace-stage--dashboard">
+    <section class="workspace-stage workspace-stage--dashboard marketing-builder-hero">
         <div class="workspace-stage__hero">
             <span class="eyebrow">Marketing Plan Builder</span>
-            <h1 class="workspace-title">Build a broader marketing plan with or without product context.</h1>
-            <p class="lead">This is the non-product-specific planning lane. Use it when you want a market plan, launch plan, or growth plan, not only a panel-vs-panel strategy.</p>
+            <h1 class="workspace-title marketing-builder-hero__title">Build a full market plan without wasting half the page.</h1>
+            <p class="lead">Use this for broader launch, growth, or account planning. Product context is optional. Human market context, strategist guidance, and Gemini model choice stay front and center.</p>
+        </div>
+        <div class="marketing-builder-hero__metrics">
+            <article class="marketing-builder-stat">
+                <span>Plan Modes</span>
+                <strong>5</strong>
+                <p>Brief, detailed, launch, growth, and account plans.</p>
+            </article>
+            <article class="marketing-builder-stat">
+                <span>Market Inputs</span>
+                <strong>{{ form.market_accounts.field.queryset|length }}</strong>
+                <p>Selectable account contexts with institution and stakeholder behavior.</p>
+            </article>
+            <article class="marketing-builder-stat">
+                <span>Your Panels</span>
+                <strong>{{ form.your_panels.field.queryset|length }}</strong>
+                <p>Optional product context from your uploaded panel library.</p>
+            </article>
+            <article class="marketing-builder-stat">
+                <span>Competitor Panels</span>
+                <strong>{{ form.competitor_panels.field.queryset|length }}</strong>
+                <p>Optional competitor context for sharper positioning.</p>
+            </article>
         </div>
     </section>
-    <section class="workspace-grid workspace-grid--stacked">
-        <article class="workspace-panel detail-panel">
-            <form method="post" class="styled-form">
-                {% csrf_token %}
-                <div class="form-grid form-grid--two">
-                    {% for field in form %}
-                        <div class="form-row {% if field.name == 'objective' or field.name == 'strategist_note' or field.name == 'your_panels' or field.name == 'competitor_panels' or field.name == 'market_accounts' %}form-row--full{% endif %}">
-                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {{ field }}
-                            {% for error in field.errors %}
-                                <p class="form-error">{{ error }}</p>
-                            {% endfor %}
-                        </div>
+
+    <section class="marketing-builder-layout">
+        <form method="post" class="workspace-panel marketing-builder-form">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="marketing-builder-errors">
+                    {% for error in form.non_field_errors %}
+                        <p class="form-error">{{ error }}</p>
                     {% endfor %}
                 </div>
-                <div class="panel-editor__actions">
-                    <button class="button button-primary" type="submit">Generate Marketing Plan</button>
+            {% endif %}
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Plan Basics</span>
+                        <h2>Define the plan clearly</h2>
+                    </div>
+                    <p>Start with the commercial intent, geography, disease focus, and output shape so the model knows what kind of plan it is building.</p>
                 </div>
-            </form>
-        </article>
+                <div class="marketing-builder-grid marketing-builder-grid--two">
+                    <div class="form-row">
+                        <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                        {{ form.title }}
+                        <p class="field-hint">This exact title is used as the saved plan name and export filename base. We will not replace it with an LLM-suggested title.</p>
+                        {% for error in form.title.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.output_style.id_for_label }}">{{ form.output_style.label }}</label>
+                        {{ form.output_style }}
+                        {% for error in form.output_style.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.geography.id_for_label }}">{{ form.geography.label }}</label>
+                        {{ form.geography }}
+                        {% for error in form.geography.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.disease_focus.id_for_label }}">{{ form.disease_focus.label }}</label>
+                        {{ form.disease_focus }}
+                        {% for error in form.disease_focus.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row form-row--full">
+                        <label for="{{ form.objective.id_for_label }}">{{ form.objective.label }}</label>
+                        {{ form.objective }}
+                        <p class="field-hint">Keep this practical: what do you want the plan to accomplish, for whom, and over what horizon?</p>
+                        {% for error in form.objective.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Strategy Engine</span>
+                        <h2>Steer the model</h2>
+                    </div>
+                    <p>Choose the Gemini model and add a strategist note so the output feels like your market and your commercial style, not a generic AI memo.</p>
+                </div>
+                <div class="marketing-builder-grid marketing-builder-grid--two">
+                    <div class="form-row">
+                        <label for="{{ form.strategy_model.id_for_label }}">{{ form.strategy_model.label }}</label>
+                        {{ form.strategy_model }}
+                        {% for error in form.strategy_model.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row marketing-toggle-row">
+                        <label for="{{ form.include_product_context.id_for_label }}">{{ form.include_product_context.label }}</label>
+                        <div class="marketing-toggle">
+                            {{ form.include_product_context }}
+                            <span>Include your panels and competitor panels as optional product context.</span>
+                        </div>
+                        {% for error in form.include_product_context.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row form-row--full">
+                        <label for="{{ form.strategist_note.id_for_label }}">{{ form.strategist_note.label }}</label>
+                        {{ form.strategist_note }}
+                        <p class="field-hint">Use this like a strategic brief: emphasize launch pressure, doctor behavior, ethical market constraints, target institutions, or the tone you want in the final plan.</p>
+                        {% for error in form.strategist_note.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Sales Guardrails</span>
+                        <h2>Anchor the plan to your own commercial expectation</h2>
+                    </div>
+                    <p>Use these fields when you want the model to stay grounded. This is the cleanest way to stop inflated sample volume or revenue assumptions.</p>
+                </div>
+                <div class="marketing-builder-grid marketing-builder-grid--two">
+                    <div class="form-row">
+                        <label for="{{ form.planning_horizon.id_for_label }}">{{ form.planning_horizon.label|default:"Planning horizon" }}</label>
+                        {{ form.planning_horizon }}
+                        {% for error in form.planning_horizon.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.expected_monthly_samples.id_for_label }}">{{ form.expected_monthly_samples.label|default:"Expected monthly samples" }}</label>
+                        {{ form.expected_monthly_samples }}
+                        {% for error in form.expected_monthly_samples.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.expected_quarterly_revenue_bdt.id_for_label }}">{{ form.expected_quarterly_revenue_bdt.label|default:"Expected quarterly revenue (BDT)" }}</label>
+                        {{ form.expected_quarterly_revenue_bdt }}
+                        {% for error in form.expected_quarterly_revenue_bdt.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row">
+                        <label for="{{ form.expected_year_one_revenue_bdt.id_for_label }}">{{ form.expected_year_one_revenue_bdt.label|default:"Expected year-one revenue (BDT)" }}</label>
+                        {{ form.expected_year_one_revenue_bdt }}
+                        {% for error in form.expected_year_one_revenue_bdt.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="form-row form-row--full">
+                        <label for="{{ form.revenue_guardrail_note.id_for_label }}">{{ form.revenue_guardrail_note.label|default:"Revenue guardrail note" }}</label>
+                        {{ form.revenue_guardrail_note }}
+                        <p class="field-hint">Example: “Keep year-one revenue conservative. Assume 8-12 samples/month in Dhaka only, with slow account activation.”</p>
+                        {% for error in form.revenue_guardrail_note.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Source Plans</span>
+                        <h2>Reuse earlier strategy work</h2>
+                    </div>
+                    <p>Select earlier plans when you want the next output style to inherit prior thinking, human edits, and strategic continuity instead of starting from scratch.</p>
+                </div>
+                <div class="marketing-selection-card">
+                    <div class="marketing-selection-card__head">
+                        <div>
+                            <h3>{{ form.source_plans.label }}</h3>
+                            <p>Choose one or more earlier plans to use as context for this next plan.</p>
+                        </div>
+                        <span class="mini-item__count">{{ form.source_plans.field.queryset|length }}</span>
+                    </div>
+                    <div class="marketing-selection-card__body checkbox-grid checkbox-grid--scroll">
+                        {{ form.source_plans }}
+                    </div>
+                    {% for error in form.source_plans.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                </div>
+            </section>
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Market Context</span>
+                        <h2>Choose the accounts that should shape the plan</h2>
+                    </div>
+                    <p>These selections ground the output in real institution behavior, field constraints, stakeholder patterns, and local commercial realities.</p>
+                </div>
+                <div class="marketing-selection-card">
+                    <div class="marketing-selection-card__head">
+                        <div>
+                            <h3>{{ form.market_accounts.label }}</h3>
+                            <p>Multi-select the institutions or account contexts that should influence this plan.</p>
+                        </div>
+                        <span class="mini-item__count">{{ form.market_accounts.field.queryset|length }}</span>
+                    </div>
+                    <div class="marketing-selection-card__body checkbox-grid checkbox-grid--scroll">
+                        {{ form.market_accounts }}
+                    </div>
+                    {% for error in form.market_accounts.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                </div>
+            </section>
+
+            <section class="marketing-builder-section">
+                <div class="marketing-builder-section__head">
+                    <div>
+                        <span class="eyebrow">Optional Product Context</span>
+                        <h2>Add product perspective only when it helps</h2>
+                    </div>
+                    <p>This is optional. Use it when you want the plan to include your own panel set, competitor positioning, or broader product-level commercial framing.</p>
+                </div>
+                <div class="marketing-builder-grid marketing-builder-grid--two">
+                    <div class="marketing-selection-card">
+                        <div class="marketing-selection-card__head">
+                            <div>
+                                <h3>{{ form.your_panels.label }}</h3>
+                                <p>Select one or more of your panels to bring into the strategy context.</p>
+                            </div>
+                            <span class="mini-item__count">{{ form.your_panels.field.queryset|length }}</span>
+                        </div>
+                        <div class="marketing-selection-card__body checkbox-grid checkbox-grid--scroll checkbox-grid--panel">
+                            {{ form.your_panels }}
+                        </div>
+                        {% for error in form.your_panels.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="marketing-selection-card">
+                        <div class="marketing-selection-card__head">
+                            <div>
+                                <h3>{{ form.competitor_panels.label }}</h3>
+                                <p>Select the competitor panels you want the LLM to keep in view while shaping the plan.</p>
+                            </div>
+                            <span class="mini-item__count">{{ form.competitor_panels.field.queryset|length }}</span>
+                        </div>
+                        <div class="marketing-selection-card__body checkbox-grid checkbox-grid--scroll checkbox-grid--panel">
+                            {{ form.competitor_panels }}
+                        </div>
+                        {% for error in form.competitor_panels.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <div class="marketing-builder-submit">
+                <div>
+                    <h3>Ready to generate</h3>
+                    <p>The plan will combine your strategist note, selected market context, optional product context, and chosen Gemini model into one payload.</p>
+                </div>
+                <button class="button button-primary" type="submit">Generate Marketing Plan</button>
+            </div>
+        </form>
+
+        <aside class="marketing-builder-aside">
+            <article class="workspace-panel marketing-builder-note marketing-builder-note--dark">
+                <span class="eyebrow">Better Builder</span>
+                <h2>Why this layout works better</h2>
+                <ul class="marketing-builder-note__list">
+                    <li>High-value text fields stay above the fold.</li>
+                    <li>Long market and panel lists scroll inside their own cards.</li>
+                    <li>The right rail keeps guidance visible while you work.</li>
+                    <li>You can create a broad market plan with or without product context.</li>
+                </ul>
+            </article>
+
+            <article class="workspace-panel marketing-builder-note">
+                <span class="eyebrow">What To Write</span>
+                <h3>Strong strategist note example</h3>
+                <p>Build a concise NSCLC-focused growth plan for Dhaka private hospitals. Prioritize evidence-led positioning, fast turnaround time messaging, pulmonologist and oncologist engagement, institution-level access strategy, and compliant counterstrategy against relationship-driven competitor referrals.</p>
+            </article>
+
+            <article class="workspace-panel marketing-builder-note">
+                <span class="eyebrow">Practical Tip</span>
+                <h3>When to skip product context</h3>
+                <p>Leave panels unselected when you want a pure go-to-market plan focused on accounts, doctors, campaigns, channels, and field execution rather than product-vs-product differentiation.</p>
+            </article>
+
+            <article class="workspace-panel marketing-builder-note">
+                <span class="eyebrow">Execution Ready</span>
+                <h3>Structured for CSV and future Gantt</h3>
+                <p>Launch, growth, and account plans now ask for timeline rows, revenue rows, and action blocks so we can export them cleanly and use them later for execution tracking.</p>
+            </article>
+        </aside>
     </section>
 </main>
 {% endblock %}
